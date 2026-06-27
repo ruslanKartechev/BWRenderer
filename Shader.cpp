@@ -129,7 +129,7 @@ bool Shader::CheckCompileErrors(GLuint shaderID, int type) {
         std::string compilerLog;
         compilerLog.resize(logLength);
         glGetShaderInfoLog(shaderID, logLength, &logLength, compilerLog.data());
-        fprintf(stderr, "Shader error found (len: %d): %s\n", logLength, compilerLog.c_str());
+        fprintf(stderr, "Shader error found: %s\n", compilerLog.c_str());
         return false;
     }
     return true;

@@ -9,14 +9,26 @@
 #include "Texture.h"
 #include "GameTime.h"
 #include "Transform.h"
+#include "cglm/clipspace/persp_lh_no.h"
+#include "DataStructures.h"
+
 #define HANDLE_INDEX(H) (H - 1)
 
 #define LOG(str) do {printf("%s\n", str);}while(false);
 #define LOG2(str1, str2) do {printf("%s1 %s2\n", str1, str2); }while(false);
 #define LOG3(str1, str2, str3) do {printf("%s1 %s2 %s3\n", str1, str2, str3); }while(false);
 
+#define STR_VEC2(vec) "[" << vec[0]<< ", " << vec[1] << "]";
+#define STR_VEC3(vec) "[" << vec[0]<< ", " << vec[1] << ", " << vec[2] << "]";
+#define STR_VEC4(vec) "[" << vec[0]<< ", " << vec[1] << ", " << vec[2] << ", " << vec[3] << "]";
+
+
 const char* ID_UNIFORM_MVP = "MATRIX_MVP";
 const char* ID_UNIFORM_TIME = "GLOBAL_TIME";
+const char* ID_UNIFORM_GLOBAL_LIGHT = "GLOBAL_LIGHT";
+const char* ID_UNIFORM_VIEW_POS = "VIEW_POS";
+const char* ID_UNIFORM_AMBIENT_LIGHT_COLOR = "AMBIENT_LIGHT_COLOR";
+const char* ID_UNIFORM_AMBIENT_LIGHT_INTENSITY = "AMBIENT_LIGHT_INTENSITY";
 
 
 // region Graphics Data Structures
@@ -32,43 +44,6 @@ typedef struct {
 } FrameBufferUI;
 
 
-typedef struct Mesh{
-    float* vertexData = nullptr;
-    int* indexData = nullptr;
-
-    size_t handle;
-    int vertexCount;
-    int indexCount;
-    int stride;
-
-    int startIndexVertex = 0;
-    int startIndexUV = 0;
-    int startIndexColor = 0;
-    int startIndexNormals = 0;
-
-} Mesh;
-
-typedef struct {
-    size_t transformHandle;
-    size_t meshHandle;
-    GLuint shaderId;
-    GLuint vao;
-    GLuint vbo;
-    GLuint ebo;
-} RenderObject;
-
-
-
-typedef struct {
-    float fieldOfView;
-    float aspectRatio;
-    float nearPlane;
-    float farPlane;
-
-    mat4 viewMatrix;
-    mat4 projectionMatrix;
-} Camera;
-
 // endregion
 
 
@@ -83,12 +58,26 @@ static Shader* default3dShader = nullptr;
 static vec4 backgroundColor = {0.8f, 0.5f, 0.76f, 1.0f};
 
 static Camera camera = {};
-static Transform cameraTransform = {};
 
 static Mesh meshes[3] = {Mesh(), Mesh(), Mesh()};
-static Transform transforms[3] = {Transform(), Transform(), Transform()};
 
-static RenderObject objects[3] = {RenderObject(), RenderObject(), RenderObject()};
+static Transform transforms[10] = {Transform(), Transform(), Transform(), Transform(), Transform(),
+    Transform(), Transform(), Transform(),Transform(),Transform()};
+
+static RenderObject objects[5] = {RenderObject(), RenderObject(), RenderObject(), RenderObject(), RenderObject()};
+
+static Light mainLight;
+
+Transform nullTransform;
+const int ObjectsCount = 3;
+
+Transform& GetTransform(int handle) {
+    if (handle <= 0) {
+        return nullTransform;
+    }
+    return transforms[handle-1];
+}
+
 
 // endregion
 
@@ -114,52 +103,53 @@ void TransformUpdate(Transform& transform) {
 
 
 
-void ClearMesh() {
+void ClearMesh(Mesh& mesh) {
 }
 
 
 void BuildCubeMesh(Mesh& mesh) {
     constexpr float d = 0.5f;
-    mesh.vertexCount = 24 * 5;
+    mesh.stride = 8;
+    mesh.vertexDataCount = 24 * mesh.stride;
     mesh.indexCount = 36;
-    mesh.stride = 5;
     mesh.startIndexVertex = 0;
     mesh.startIndexUV = 3;
+    mesh.startIndexNormals = 5;
     mesh.startIndexColor = -1;
-    mesh.startIndexNormals = -1;
-    mesh.vertexData = new float[mesh.vertexCount] {
-        // POSITION    // UV
+    mesh.vertexData = new float[] {
+        // POSITION    // UV       // Normal
         // Front Face (Z = 0.5f)
-        -d, -d,  d,   0.0f, 0.0f,
-         d, -d,  d,   1.0f, 0.0f,
-         d,  d,  d,   1.0f, 1.0f,
-        -d,  d,  d,   0.0f, 1.0f,
+        -d, -d,  d,   0.0f, 0.0f,   0, 0,  1,
+         d, -d,  d,   1.0f, 0.0f,   0, 0,  1,
+         d,  d,  d,   1.0f, 1.0f,   0, 0,  1,
+        -d,  d,  d,   0.0f, 1.0f,   0, 0,  1,
         // Back Face (Z = -d)
-         d, -d, -d,   0.0f, 0.0f,
-        -d, -d, -d,   1.0f, 0.0f,
-        -d,  d, -d,   1.0f, 1.0f,
-         d,  d, -d,   0.0f, 1.0f,
+         d, -d, -d,   0.0f, 0.0f,   0, 0, -1,
+        -d, -d, -d,   1.0f, 0.0f,   0, 0, -1,
+        -d,  d, -d,   1.0f, 1.0f,   0, 0, -1,
+         d,  d, -d,   0.0f, 1.0f,   0, 0, -1,
         // Left Face (X = -d)
-        -d, -d, -d,   0.0f, 0.0f,
-        -d, -d,  d,   1.0f, 0.0f,
-        -d,  d,  d,   1.0f, 1.0f,
-        -d,  d, -d,   0.0f, 1.0f,
+        -d, -d, -d,   0.0f, 0.0f, - 1, 0, 0,
+        -d, -d,  d,   1.0f, 0.0f, - 1, 0, 0,
+        -d,  d,  d,   1.0f, 1.0f, - 1, 0, 0,
+        -d,  d, -d,   0.0f, 1.0f, - 1, 0, 0,
         // Right Face (X = d)
-         d, -d,  d,   0.0f, 0.0f,
-         d, -d, -d,   1.0f, 0.0f,
-         d,  d, -d,   1.0f, 1.0f,
-         d,  d,  d,   0.0f, 1.0f,
+         d, -d,  d,   0.0f, 0.0f,   1, 0, 0,
+         d, -d, -d,   1.0f, 0.0f,   1, 0, 0,
+         d,  d, -d,   1.0f, 1.0f,   1, 0, 0,
+         d,  d,  d,   0.0f, 1.0f,   1, 0, 0,
         // Top Face (Y = d)
-        -d,  d,  d,   0.0f, 0.0f,
-         d,  d,  d,   1.0f, 0.0f,
-         d,  d, -d,   1.0f, 1.0f,
-        -d,  d, -d,   0.0f, 1.0f,
+        -d,  d,  d,   0.0f, 0.0f,   0, 1, 0,
+         d,  d,  d,   1.0f, 0.0f,   0, 1, 0,
+         d,  d, -d,   1.0f, 1.0f,   0, 1, 0,
+        -d,  d, -d,   0.0f, 1.0f,   0, 1, 0,
         // Bottom Face (Y = -d)
-        -d, -d, -d,   0.0f, 0.0f,
-         d, -d, -d,   1.0f, 0.0f,
-         d, -d,  d,   1.0f, 1.0f,
-        -d, -d,  d,   0.0f, 1.0f
+        -d, -d, -d,   0.0f, 0.0f,   0, -1, 0,
+         d, -d, -d,   1.0f, 0.0f,   0, -1, 0,
+         d, -d,  d,   1.0f, 1.0f,   0, -1, 0,
+        -d, -d,  d,   0.0f, 1.0f,   0, -1, 0,
     };
+
     mesh.indexData = new int[mesh.indexCount] {
         0,  1,  2,    2,  3,  0,  // Front Face
         4,  5,  6,    6,  7,  4,  // Back Face
@@ -178,42 +168,44 @@ void InitMaterial(RenderObject& obj) {
 
 void AddRenderObj(RenderObject& obj,
     const Mesh& mesh,
-    const size_t transformHandle) {
+    const size_t transformHandle)
+{
     GLuint vao;
     GLuint vbo;
     GLuint ebo;
     obj.transformHandle = transformHandle;
     obj.meshHandle = mesh.handle;
+
     glGenVertexArrays(1, &vao);
     glGenBuffers(1, &vbo);
     glGenBuffers(1, &ebo);
     glBindVertexArray(vao);
 
     glBindBuffer(GL_ARRAY_BUFFER, vbo);
-    glBufferData(GL_ARRAY_BUFFER, sizeof(float) * mesh.vertexCount, mesh.vertexData, GL_DYNAMIC_DRAW);
+    glBufferData(GL_ARRAY_BUFFER, sizeof(float) * mesh.vertexDataCount, mesh.vertexData, GL_DYNAMIC_DRAW);
 
     glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, ebo);
-    glBufferData(GL_ELEMENT_ARRAY_BUFFER, sizeof(float)*mesh.indexCount, mesh.indexData, GL_DYNAMIC_DRAW);
+    glBufferData(GL_ELEMENT_ARRAY_BUFFER, sizeof(int) * mesh.indexCount, mesh.indexData, GL_DYNAMIC_DRAW);
 
     int stride = mesh.stride * sizeof(float);
-    int idx = 0;
-    glVertexAttribPointer(idx, 3, GL_FLOAT, GL_FALSE, stride, (const void*)0); // XYZ
-    glEnableVertexAttribArray(idx);
-    idx++;
+    int attributeIdx = 0;
+    glVertexAttribPointer(attributeIdx, 3, GL_FLOAT, GL_FALSE, stride, (const void*)0); // XYZ
+    glEnableVertexAttribArray(attributeIdx);
+    attributeIdx++;
     if (mesh.startIndexUV >= 0) {
-        glVertexAttribPointer(idx, 2, GL_FLOAT, GL_TRUE, stride, (const void*)(mesh.startIndexUV*sizeof(float))); // UV
-        glEnableVertexAttribArray(idx);
-        idx++;
-    }
-    if (mesh.startIndexColor >= 0) {
-        glVertexAttribPointer(idx, 4, GL_FLOAT, GL_FALSE, stride, (const void*)(mesh.startIndexColor*sizeof(float))); // RGBA
-        glEnableVertexAttribArray(idx);
-        idx++;
+        glVertexAttribPointer(attributeIdx, 2, GL_FLOAT, GL_FALSE, stride, (const void*)(mesh.startIndexUV*sizeof(float))); // UV
+        glEnableVertexAttribArray(attributeIdx);
+        attributeIdx++;
     }
     if (mesh.startIndexNormals >= 0) {
-        glVertexAttribPointer(idx, 4, GL_FLOAT, GL_FALSE, stride, (const void*)(mesh.startIndexColor*sizeof(float))); // RGBA
-        glEnableVertexAttribArray(idx);
-        idx++;
+        glVertexAttribPointer(attributeIdx, 3, GL_FLOAT, GL_FALSE, stride, (const void*)(mesh.startIndexNormals*sizeof(float))); // XYZ normals
+        glEnableVertexAttribArray(attributeIdx);
+        attributeIdx++;
+    }
+    if (mesh.startIndexColor >= 0) {
+        glVertexAttribPointer(attributeIdx, 4, GL_FLOAT, GL_FALSE, stride, (const void*)(mesh.startIndexColor*sizeof(float))); // RGBA
+        glEnableVertexAttribArray(attributeIdx);
+        attributeIdx++;
     }
 
     glBindVertexArray(0);
@@ -233,8 +225,8 @@ void InitBackgroundQuad(FrameBufferUI& fbBackground) {
     };
     constexpr int startIdxCount = 6;
     unsigned int indices[startIdxCount] = {
-        0, 2, 1, // First Triangle
-        0, 3, 2  // Second Triangle
+        0, 2, 1, // Trig 1
+        0, 3, 2  // Trig 2
     };
 
     GLuint vao;
@@ -298,22 +290,46 @@ void InitTextures() {
     }
 }
 
-void InitCamera() {
+void InitCamera(const int transformIdx) {
     camera.fieldOfView = 60.0f;
     camera.farPlane = 500.0f;
     camera.nearPlane = 0.1f;
     camera.aspectRatio = 1.0f;
-    Transform_Init(cameraTransform);
-    SET_VEC3(cameraTransform.position, 0.0f, 0.25f, +5.0f);
+    camera.transformHandle = transformIdx;
+    Transform& cameraTransform = GetTransform(transformIdx);
+    SET_VEC3(cameraTransform.position, 0.0f, 0.25f, -6.0f);
 
     Transform_SetRotationEulerDeg(cameraTransform, 1.0f, 5.0f, 0.0f);
 }
 
+
+void InitSceneLights(const int transformHandle) {
+    mainLight.lightType = ELightType::Directional;
+    mainLight.transformHandle = transformHandle;
+    SET_VEC3(mainLight.color, 1.0f, 1.0f, 1.0f);
+    Transform& tr = GetTransform(transformHandle);
+    Transform_SetRotationEulerDeg(tr, -45, -5 ,0);
+    Transform_SetWorldPosition(tr, 0.0f, 10.0f, 0.0f);
+
+}
+
 void InitScene() {
     printf("Init basic scene\n");
+
+    int transformCount = std::size(transforms);
+    for (int i = 0; i < transformCount; i++) {
+        Transform_Init(transforms[i]);
+    }
+
+
+    int transformHeadIdx = 1;
     InitShaders();
     InitTextures();
-    InitCamera();
+    InitCamera(transformHeadIdx);
+    transformHeadIdx++;
+    InitSceneLights(transformHeadIdx);
+    transformHeadIdx++;
+
     fbBackground = new FrameBufferUI();
     InitBackgroundQuad(*fbBackground);
 
@@ -321,29 +337,27 @@ void InitScene() {
     BuildCubeMesh(meshes[1]);
     BuildCubeMesh(meshes[2]);
 
-    const int count = 3;
-    for (int i = 0; i < count; i++) {
-        Transform_Init(transforms[i]);
-    }
-    for (int i = 0; i < count; i++) {
-        meshes[i].handle = i+1;
+
+    int meshIdx = 1;
+    for (int k = 0; k < ObjectsCount; k++) {
+        meshes[k].handle = meshIdx++;
     }
 
-    for (int i = 0; i < count; i++) {
-        Transform_SetRotationEulerDeg(transforms[i],
-            0.0f, 30.0f + i * 10, 0.0f);
+    AddRenderObj(objects[0], meshes[0], transformHeadIdx++);
+    AddRenderObj(objects[1], meshes[0], transformHeadIdx++);
+    AddRenderObj(objects[2], meshes[0], transformHeadIdx++);
 
-        SET_VEC3(transforms[i].position, 0.25f, -1 + i*1.25f, 0.0f );
+    for (int k = 0; k < ObjectsCount; k++) {
+        Transform& tr = GetTransform(objects[k].transformHandle);
+        Transform_SetRotationEulerDeg(tr, 0.0f, 30.0f + k * 10.0f, 0.0f);
+        SET_VEC3(tr.position, 0.25f, -1 + k * 1.25f, 0.0f );
+        printf("--------- POSITION --------- SET [%f, %f, %f]\n", tr.position[0], tr.position[1], tr.position[2]);
     }
-    AddRenderObj(objects[0], meshes[0], 1);
-    AddRenderObj(objects[1], meshes[0], 2);
-    AddRenderObj(objects[2], meshes[0], 3);
 
     InitMaterial(objects[0]);
     InitMaterial(objects[1]);
     InitMaterial(objects[2]);
 }
-
 
 
 // region Loops
@@ -352,20 +366,26 @@ void StartFrame() {
     glClear(GL_DEPTH_BUFFER_BIT | GL_COLOR_BUFFER_BIT);
 
     camera.aspectRatio = (f32)mainWin.width / (f32)mainWin.height;
+    Transform& cameraTransform = GetTransform(camera.transformHandle);
+    printf("Camera position [%f, %f, %f] \n", cameraTransform.position[0], cameraTransform.position[1], cameraTransform.position[2]);
     TransformUpdate(cameraTransform);
     glm_mat4_copy(cameraTransform.modelMatrix, camera.viewMatrix);
+
     glm_inv_tr(camera.viewMatrix);
-    glm_perspective(glm_rad(camera.fieldOfView),
+    glm_perspective_lh_no(glm_rad(camera.fieldOfView),
         camera.aspectRatio,
         camera.nearPlane,
         camera.farPlane,
         camera.projectionMatrix);
-    printf("Camera AR: %f (%d, %d)", camera.aspectRatio, mainWin.width, mainWin.height);
+    // printf("Camera AR: %f (%d, %d)", camera.aspectRatio, mainWin.width, mainWin.height);
 }
 
 void EndFrame() {
     SwapBuffers(mainWin.dc);
 }
+
+vec3 ambientLightColor = {1.0f, 1.0f, 1.0f};
+float ambientIntensity = 0.1;
 
 void RenderOpaques() {
     glEnable(GL_DEPTH_TEST);
@@ -373,24 +393,39 @@ void RenderOpaques() {
 
     mat4 viewProjMatrix;
     glm_mat4_mul(camera.projectionMatrix, camera.viewMatrix, viewProjMatrix);
-    // printf("CAMERA Position %f, %f, %f\n",
-    //     cameraTransform.position[0],
-    //     cameraTransform.position[1],
-    //     cameraTransform.position[2]);
 
-    size_t count = 3;
-    for (size_t i = 0; i < count; i ++) {
+    for (size_t i = 0; i < ObjectsCount; i ++) {
+
         RenderObject& obj = objects[i];
-        Transform& transform = transforms[HANDLE_INDEX(obj.transformHandle)];
-        TransformUpdate (transform);
+        Transform& transform = GetTransform(obj.transformHandle);
+        TransformUpdate(transform);
     }
 
-    for (size_t i = 0; i < count; i ++) {
+    Transform& cameraTransform = GetTransform(camera.transformHandle);
+    Transform& globalLightTransform = GetTransform(mainLight.transformHandle);
+    vec3 cameraViewDir;
+    vec3 mainLightDir;
+    Transform_GetFrw(cameraTransform, cameraViewDir);
+    Transform_GetFrw(globalLightTransform, mainLightDir);
+
+    default3dShader->setVec3(ID_UNIFORM_VIEW_POS, cameraTransform.position);
+    default3dShader->setVec3(ID_UNIFORM_AMBIENT_LIGHT_COLOR, ambientLightColor);
+    default3dShader->setFloat(ID_UNIFORM_AMBIENT_LIGHT_INTENSITY, ambientIntensity);
+
+    default3dShader->setVec3("GLOBAL_LIGHT.direction", mainLightDir);
+    default3dShader->setVec3("GLOBAL_LIGHT.color", mainLight.color);
+    default3dShader->setFloat("GLOBAL_LIGHT.intensity", mainLight.intensity);
+
+
+    for (size_t i = 0; i < ObjectsCount; i ++) {
+
         RenderObject& obj = objects[i];
-        Mesh& mesh = meshes[HANDLE_INDEX(obj.meshHandle)];
-        Transform& transform = transforms[HANDLE_INDEX(obj.transformHandle)];
+        Mesh& mesh = meshes[obj.meshHandle-1];
+        Transform& transform = GetTransform(obj.transformHandle);
+
         mat4 mvp;
         glm_mat4_mul(viewProjMatrix, transform.modelMatrix, mvp);
+
 
         glUseProgram(obj.shaderId);
         int mvpLocation = glGetUniformLocation(obj.shaderId, ID_UNIFORM_MVP);
@@ -422,44 +457,23 @@ void RenderBackground() {
 
 void RenderUI() {
     glDisable(GL_DEPTH_TEST);
-
 }
-
 
 
 void Animations() {
     float dt = Time_GetDelta();
     float rotDelta = 25.0f * dt;
     for(auto& obj : objects) {
-        Transform& tr = transforms[HANDLE_INDEX(obj.transformHandle)];
+        Transform& tr = GetTransform(obj.transformHandle);
         RotateLocalY(tr, rotDelta);
     }
-
 }
 
 
-void Inputs() {
-    if (Input_IsKeyDown(GameInputKey::KEY_W)) {
-        printf("key W down\n");
-    }
-    if (Input_IsKeyDown(GameInputKey::KEY_A)) {
-        printf("key A down\n");
-    }
-    if (Input_IsKeyDown(GameInputKey::KEY_S)) {
-        printf("key S down\n");
-    }
-    if (Input_IsKeyDown(GameInputKey::KEY_D)) {
-        printf("key D down\n");
-    }
-    vec2 mousePosition;
-    Input_GetMousePosition(mousePosition);
-    printf("Mouse position: %f, %f\n", mousePosition[0], mousePosition[1]);
-}
 
 void RenderLoop() {
-    Inputs();
     StartFrame();
-    RenderBackground();
+    // RenderBackground();
     Animations();
 
     RenderOpaques();
@@ -468,6 +482,67 @@ void RenderLoop() {
 }
 // endregion
 
+
+
+static float cameraRotationSpeed = 3.0f;
+static float cameraMoveSpeed = 2.5f;
+
+
+void GameInputs() {
+    float dt = (float)Time_GetDelta();
+    Transform& cameraTransform = GetTransform(camera.transformHandle);
+
+    vec3 localMove = {};
+    float verticalShift = 0;
+    if (Input_IsKeyHeld(GameInputKey::KEY_W)) {
+        localMove[2] = 1;
+    }
+    if (Input_IsKeyHeld(GameInputKey::KEY_A)) {
+        localMove[0] = -1;
+    }
+    if (Input_IsKeyHeld(GameInputKey::KEY_S)) {
+        localMove[2] = -1;
+    }
+    if (Input_IsKeyHeld(GameInputKey::KEY_D)) {
+        localMove[0] = 1;
+    }
+    if (Input_IsKeyHeld(GameInputKey::KEY_E)) {
+        verticalShift = 1;
+    }
+    if (Input_IsKeyHeld(GameInputKey::KEY_Q)) {
+        verticalShift = -1;
+    }
+    vec2 mousePosition;
+    Input_GetMousePosition(mousePosition);
+
+    int state = Input_IsMouseButtonHeld(GameInputKey::MOUSE_BUTTON_RIGHT) ? 1 : 0;
+    if (Input_IsMouseButtonHeld(GameInputKey::MOUSE_BUTTON_RIGHT)) {
+        vec2 mouseDelta;
+        Input_GetMouseDelta(mouseDelta);
+        glm_vec2_scale(mouseDelta, dt * cameraRotationSpeed, mouseDelta);
+
+        vec3 eulersBefore;
+        vec3 eulersAfter;
+        Transform_QuatToEuler(cameraTransform.rotation, eulersBefore);
+
+        Transform_RotateWorldY(cameraTransform, mouseDelta[0]);
+        Transform_RotateLocalX(cameraTransform, -mouseDelta[1]);
+        Transform_QuatToEuler(cameraTransform.rotation, eulersAfter);
+    }
+
+    vec3 worldMove;
+    Transform_ToWorldVector(cameraTransform, localMove, worldMove);
+    glm_vec3_scale(worldMove, dt * cameraMoveSpeed, worldMove);
+    vec3 verticalMove = {0,1,0};
+    glm_vec3_scale(verticalMove, dt * verticalShift * cameraMoveSpeed, verticalMove);
+    glm_vec3_add(worldMove, verticalMove, worldMove);
+    glm_vec3_add(cameraTransform.position, worldMove, cameraTransform.position);
+}
+
+
+void GameLoop() {
+    GameInputs();
+}
 
 
 // region WinProc callbacks and Inputs
@@ -504,6 +579,8 @@ void FetchProjectPath(std::string &exePath, std::string &resourcesPat) {
     resourcesPat = (_resourcesPat / "Resources").string();
 }
 
+
+
 int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE prevInstance, LPSTR lpCmdLine, int nShowCmd) {
     FetchProjectPath(Application::RootPath, Application::ResourcesPath);
     printf("-- RootPath %s,  ResourcesPath %s \n", Application::RootPath.c_str(), Application::ResourcesPath.c_str());
@@ -530,10 +607,12 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE prevInstance, LPSTR lpCmdLine,
     // int frames = 0;
     while (!mainWin.close)
     {
-        printf("Frame %d, Delta: %f \n", Time_GetFrameCountInt(), Time_GetDelta());
+        // printf("Frame %d, Delta: %f \n", Time_GetFrameCountInt(), Time_GetDelta());
         Time_Update();
-        WindowUpdate(mainWin);
+        Win32WindowUpdate(mainWin);
+        Input_Update();
         RenderLoop();
+        GameLoop();
     }
     std::cout<<"Main Loop terminated\n";
     return 0;

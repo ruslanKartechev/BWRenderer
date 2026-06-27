@@ -44,7 +44,7 @@ bool Input_IsKeyHeld(GameInputKey engineKey);
 bool Input_IsKeyUp(GameInputKey engineKey);
 
 bool Input_IsMouseButtonDown(GameInputKey mouseButton);
-bool Input_IsMouseButtonPressed(GameInputKey mouseButton);
+bool Input_IsMouseButtonHeld(GameInputKey mouseButton);
 bool Input_IsMouseButtonUp(GameInputKey mouseButton);
 
 void Input_GetMousePosition(vec2 dest);

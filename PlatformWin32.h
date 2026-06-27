@@ -40,7 +40,7 @@ typedef struct WindowParams{
 
 bool CreateFirstWindowAndInitGL(WindowParams* params);
 
-void WindowUpdate(const WindowParams& params);
+void Win32WindowUpdate(const WindowParams& params);
 
 
 #endif //RENDERGL_GL_LOADER_H

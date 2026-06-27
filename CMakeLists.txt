@@ -27,6 +27,7 @@ add_executable(
         GameTime.h
         Transform.cpp
         Transform.h
+        DataStructures.h
 )
 
 target_link_libraries(RenderGL glad opengl32 cglm stb_lib gdi32 winmm)

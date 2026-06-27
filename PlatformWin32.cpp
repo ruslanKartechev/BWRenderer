@@ -78,7 +78,7 @@ void Window_InitializeKeyMap() {
 }
 
 
-void WindowUpdate(const WindowParams& winParams)
+void Win32WindowUpdate(const WindowParams& winParams)
 {
     POINT mousePos;
     if (GetCursorPos(&mousePos)) {

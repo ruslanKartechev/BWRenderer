@@ -1,5 +1,5 @@
 #include "InputSystem.h"
-#include <string.h>
+#include <cstring>
 #define K2Int(v) static_cast<int>(v)
 
 static bool s_currentKeys[KEYS_BUFFER_SIZE];
@@ -16,6 +16,8 @@ void Input_Initialize() {
 }
 
 void Input_Update() {
+    // printf("[1]MouseCurrent: [%f, [%f]\n", s_currentMousePos[0], s_currentMousePos[1]);
+    // printf("[2]MousePrev: [%f, [%f]\n", s_previousMousePos[0], s_previousMousePos[1]);
     memcpy(s_previousKeys, s_currentKeys, sizeof(s_currentKeys));
     glm_vec2_sub(s_currentMousePos, s_previousMousePos, s_mouseDelta);
     glm_vec2_copy(s_currentMousePos, s_previousMousePos);
@@ -32,10 +34,10 @@ bool Input_IsKeyUp(GameInputKey key) {
 }
 
 bool Input_IsMouseButtonDown(GameInputKey btn) {
-    return s_currentKeys[K2Int(btn)];
-}
-bool Input_IsMouseButtonPressed(GameInputKey btn) {
     return s_currentKeys[K2Int(btn)] && !s_previousKeys[K2Int(btn)];
+}
+bool Input_IsMouseButtonHeld(GameInputKey btn) {
+    return s_currentKeys[K2Int(btn)];
 }
 bool Input_IsMouseButtonUp(GameInputKey btn) {
     return !s_currentKeys[K2Int(btn)] && s_previousKeys[K2Int(btn)];
