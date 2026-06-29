@@ -11,6 +11,9 @@
 #include "Transform.h"
 #include "cglm/clipspace/persp_lh_no.h"
 #include "DataStructures.h"
+#include <vector>
+#include "Slot.h"
+#include "Mesh.h"
 
 #define HANDLE_INDEX(H) (H - 1)
 
@@ -23,7 +26,11 @@
 #define STR_VEC4(vec) "[" << vec[0]<< ", " << vec[1] << ", " << vec[2] << ", " << vec[3] << "]";
 
 
-const char* ID_UNIFORM_MVP = "MATRIX_MVP";
+const char* ID_UNIFORM_MODEL = "MATRIX_MODEL";
+const char* ID_UNIFORM_VIEW = "MATRIX_VIEW";
+const char* ID_UNIFORM_PROJECTION = "MATRIX_PROJECTION";
+
+
 const char* ID_UNIFORM_TIME = "GLOBAL_TIME";
 const char* ID_UNIFORM_GLOBAL_LIGHT = "GLOBAL_LIGHT";
 const char* ID_UNIFORM_VIEW_POS = "VIEW_POS";
@@ -57,33 +64,32 @@ static Shader* default2dShader = nullptr;
 static Shader* default3dShader = nullptr;
 static vec4 backgroundColor = {0.8f, 0.5f, 0.76f, 1.0f};
 
+static std::vector<Handle> sceneObjectHandles = {};
+
+
+static SlotMap<Mesh> meshes = {};
+static SlotMap<Transform> transforms = {};
+static SlotMap<RenderObject> renderObjects = {};
+
 static Camera camera = {};
-
-static Mesh meshes[3] = {Mesh(), Mesh(), Mesh()};
-
-static Transform transforms[10] = {Transform(), Transform(), Transform(), Transform(), Transform(),
-    Transform(), Transform(), Transform(),Transform(),Transform()};
-
-static RenderObject objects[5] = {RenderObject(), RenderObject(), RenderObject(), RenderObject(), RenderObject()};
-
 static Light mainLight;
 
-Transform nullTransform;
-const int ObjectsCount = 3;
+vec3 ambientLightColor = {0.4f, 1.0f, 1.0f};
+float ambientIntensity = 0.2;
 
-Transform& GetTransform(int handle) {
-    if (handle <= 0) {
-        return nullTransform;
-    }
-    return transforms[handle-1];
+void LogHandle(const char* msg, const Handle& handle) {
+
+    printf(msg);
+    printf("Handle(%d, %d)", handle.index, handle.generation);
+    printf("\n");
 }
 
-
+void ReserveSpace() {
+}
 // endregion
 
 
 // region Utils
-
 void Transform_SetRotationEulerDeg(Transform& transform, vec3 angles) {
     mat4 matrix;
     glm_euler_xyz(angles, matrix);
@@ -98,67 +104,9 @@ void TransformUpdate(Transform& transform) {
     glm_mat4_mul(transform.modelMatrix, rotMat, transform.modelMatrix);
     glm_scale(transform.modelMatrix, transform.scale);
 }
-
 //endregion
 
 
-
-void ClearMesh(Mesh& mesh) {
-}
-
-
-void BuildCubeMesh(Mesh& mesh) {
-    constexpr float d = 0.5f;
-    mesh.stride = 8;
-    mesh.vertexDataCount = 24 * mesh.stride;
-    mesh.indexCount = 36;
-    mesh.startIndexVertex = 0;
-    mesh.startIndexUV = 3;
-    mesh.startIndexNormals = 5;
-    mesh.startIndexColor = -1;
-    mesh.vertexData = new float[] {
-        // POSITION    // UV       // Normal
-        // Front Face (Z = 0.5f)
-        -d, -d,  d,   0.0f, 0.0f,   0, 0,  1,
-         d, -d,  d,   1.0f, 0.0f,   0, 0,  1,
-         d,  d,  d,   1.0f, 1.0f,   0, 0,  1,
-        -d,  d,  d,   0.0f, 1.0f,   0, 0,  1,
-        // Back Face (Z = -d)
-         d, -d, -d,   0.0f, 0.0f,   0, 0, -1,
-        -d, -d, -d,   1.0f, 0.0f,   0, 0, -1,
-        -d,  d, -d,   1.0f, 1.0f,   0, 0, -1,
-         d,  d, -d,   0.0f, 1.0f,   0, 0, -1,
-        // Left Face (X = -d)
-        -d, -d, -d,   0.0f, 0.0f, - 1, 0, 0,
-        -d, -d,  d,   1.0f, 0.0f, - 1, 0, 0,
-        -d,  d,  d,   1.0f, 1.0f, - 1, 0, 0,
-        -d,  d, -d,   0.0f, 1.0f, - 1, 0, 0,
-        // Right Face (X = d)
-         d, -d,  d,   0.0f, 0.0f,   1, 0, 0,
-         d, -d, -d,   1.0f, 0.0f,   1, 0, 0,
-         d,  d, -d,   1.0f, 1.0f,   1, 0, 0,
-         d,  d,  d,   0.0f, 1.0f,   1, 0, 0,
-        // Top Face (Y = d)
-        -d,  d,  d,   0.0f, 0.0f,   0, 1, 0,
-         d,  d,  d,   1.0f, 0.0f,   0, 1, 0,
-         d,  d, -d,   1.0f, 1.0f,   0, 1, 0,
-        -d,  d, -d,   0.0f, 1.0f,   0, 1, 0,
-        // Bottom Face (Y = -d)
-        -d, -d, -d,   0.0f, 0.0f,   0, -1, 0,
-         d, -d, -d,   1.0f, 0.0f,   0, -1, 0,
-         d, -d,  d,   1.0f, 1.0f,   0, -1, 0,
-        -d, -d,  d,   0.0f, 1.0f,   0, -1, 0,
-    };
-
-    mesh.indexData = new int[mesh.indexCount] {
-        0,  1,  2,    2,  3,  0,  // Front Face
-        4,  5,  6,    6,  7,  4,  // Back Face
-        8,  9,  10,   10, 11, 8,  // Left Face
-        12, 13, 14,   14, 15, 12, // Right Face
-        16, 17, 18,   18, 19, 16, // Top Face
-        20, 21, 22,   22, 23, 20  // Bottom Face
-    };
-}
 
 
 void InitMaterial(RenderObject& obj) {
@@ -166,15 +114,26 @@ void InitMaterial(RenderObject& obj) {
 
 }
 
-void AddRenderObj(RenderObject& obj,
-    const Mesh& mesh,
-    const size_t transformHandle)
+
+void BuildCubeMeshWithHandle(const Handle& handle) {
+    Mesh& mesh = meshes.GetItemRef(handle);
+    BuildCubeMesh(mesh);
+}
+
+
+void AddRenderObj(const Handle& renderObjHandle,
+    const Handle& meshHandle,
+    const Handle& transformHandle)
 {
     GLuint vao;
     GLuint vbo;
     GLuint ebo;
+    RenderObject& obj = renderObjects.GetItemRef(renderObjHandle);
     obj.transformHandle = transformHandle;
-    obj.meshHandle = mesh.handle;
+    obj.meshHandle = meshHandle;
+    Mesh& mesh = meshes.GetItemRef(meshHandle);
+    Transform& transform = transforms.GetItemRef(transformHandle);
+    Transform_Init(transform);
 
     glGenVertexArrays(1, &vao);
     glGenBuffers(1, &vbo);
@@ -212,6 +171,8 @@ void AddRenderObj(RenderObject& obj,
     obj.vao = vao;
     obj.vbo = vbo;
     obj.ebo = ebo;
+
+    sceneObjectHandles.push_back(renderObjHandle);
 }
 
 void InitBackgroundQuad(FrameBufferUI& fbBackground) {
@@ -290,73 +251,85 @@ void InitTextures() {
     }
 }
 
-void InitCamera(const int transformIdx) {
+void InitCamera(const Handle& transformHandle) {
     camera.fieldOfView = 60.0f;
     camera.farPlane = 500.0f;
     camera.nearPlane = 0.1f;
     camera.aspectRatio = 1.0f;
-    camera.transformHandle = transformIdx;
-    Transform& cameraTransform = GetTransform(transformIdx);
-    SET_VEC3(cameraTransform.position, 0.0f, 0.25f, -6.0f);
-
+    camera.transformHandle = transformHandle;
+    Transform& cameraTransform = transforms.GetItemRef(transformHandle);
+    Transform_Init(cameraTransform);
+    Transform_SetLocalPosition(cameraTransform, 0.0f, 1.0f, -6.0f);
     Transform_SetRotationEulerDeg(cameraTransform, 1.0f, 5.0f, 0.0f);
+    Transform_SetLocalScale(cameraTransform, 1,1,1);
+    LogHandle("CAMERA transform handle", transformHandle);
 }
 
 
-void InitSceneLights(const int transformHandle) {
+void InitSceneLights(const Handle& transformHandle) {
     mainLight.lightType = ELightType::Directional;
     mainLight.transformHandle = transformHandle;
-    SET_VEC3(mainLight.color, 1.0f, 1.0f, 1.0f);
-    Transform& tr = GetTransform(transformHandle);
-    Transform_SetRotationEulerDeg(tr, -45, -5 ,0);
-    Transform_SetWorldPosition(tr, 0.0f, 10.0f, 0.0f);
 
+    SET_VEC3(mainLight.color, 1.0f, 1.0f, 1.0f);
+    Transform& lightTransform = transforms.GetItemRef(transformHandle);
+    Transform_Init(lightTransform);
+    Transform_SetRotationEulerDeg(lightTransform, -45, -5 ,0);
+    Transform_SetWorldPosition(lightTransform, 0.0f, 10.0f, 0.0f);
+    LogHandle("LIGHTS transform handle", transformHandle);
 }
 
-void InitScene() {
+
+
+Handle AddDefaultCube_PosRotScale(vec3 position, vec3 rotation, vec3 scale) {
+
+    auto handleRenderObj = renderObjects.GetFreeHandle();
+    auto handleMesh = meshes.GetFreeHandle();
+    auto handleTransform = transforms.GetFreeHandle();
+
+    BuildCubeMeshWithHandle(handleMesh);
+    AddRenderObj(handleRenderObj, handleMesh, handleTransform);
+
+    Transform& tr = transforms.GetItemRef(handleTransform);
+    Transform_SetLocalScaleVec(tr, scale);
+    Transform_SetLocalPositionVec(tr, position);
+    Transform_SetRotationEulerVec(tr, rotation);
+
+    InitMaterial(renderObjects.GetItemRef(handleRenderObj));
+
+    return handleRenderObj;
+}
+
+Handle AddDefaultCube_PosRot(vec3 position, vec3 rotation) {
+    vec3 scale = {1.0f, 1.0f, 1.0f};
+    return AddDefaultCube_PosRotScale(position, rotation, scale);
+}
+
+
+
+void InitTestScene() {
     printf("Init basic scene\n");
-
-    int transformCount = std::size(transforms);
-    for (int i = 0; i < transformCount; i++) {
-        Transform_Init(transforms[i]);
-    }
-
-
-    int transformHeadIdx = 1;
     InitShaders();
     InitTextures();
-    InitCamera(transformHeadIdx);
-    transformHeadIdx++;
-    InitSceneLights(transformHeadIdx);
-    transformHeadIdx++;
 
     fbBackground = new FrameBufferUI();
     InitBackgroundQuad(*fbBackground);
 
-    BuildCubeMesh(meshes[0]);
-    BuildCubeMesh(meshes[1]);
-    BuildCubeMesh(meshes[2]);
+    InitCamera(transforms.GetFreeHandle());
+    InitSceneLights(transforms.GetFreeHandle());
 
+    vec3 pos1 = {0.0f, -1.0f, 0.0f};
+    vec3 rot1 = {0.0f, 0.0f, 0.0f};
+    vec3 scale1 = {25.0f, 2.0f, 25.0f};
+    AddDefaultCube_PosRotScale(pos1, rot1, scale1);
 
-    int meshIdx = 1;
-    for (int k = 0; k < ObjectsCount; k++) {
-        meshes[k].handle = meshIdx++;
-    }
+    vec3 pos2 = {1.5f, 1.0f, 6.0f};
+    vec3 rot2 = {0.0f, 0.0f, 0.0f};
+    AddDefaultCube_PosRot(pos2, rot2);
 
-    AddRenderObj(objects[0], meshes[0], transformHeadIdx++);
-    AddRenderObj(objects[1], meshes[0], transformHeadIdx++);
-    AddRenderObj(objects[2], meshes[0], transformHeadIdx++);
+    vec3 pos3 = {-1.0f, 1.0f, 2.5f};
+    vec3 rot3 = {0.0f, 0.0f, 0.0f};
+    AddDefaultCube_PosRot(pos3, rot3);
 
-    for (int k = 0; k < ObjectsCount; k++) {
-        Transform& tr = GetTransform(objects[k].transformHandle);
-        Transform_SetRotationEulerDeg(tr, 0.0f, 30.0f + k * 10.0f, 0.0f);
-        SET_VEC3(tr.position, 0.25f, -1 + k * 1.25f, 0.0f );
-        printf("--------- POSITION --------- SET [%f, %f, %f]\n", tr.position[0], tr.position[1], tr.position[2]);
-    }
-
-    InitMaterial(objects[0]);
-    InitMaterial(objects[1]);
-    InitMaterial(objects[2]);
 }
 
 
@@ -366,8 +339,8 @@ void StartFrame() {
     glClear(GL_DEPTH_BUFFER_BIT | GL_COLOR_BUFFER_BIT);
 
     camera.aspectRatio = (f32)mainWin.width / (f32)mainWin.height;
-    Transform& cameraTransform = GetTransform(camera.transformHandle);
-    printf("Camera position [%f, %f, %f] \n", cameraTransform.position[0], cameraTransform.position[1], cameraTransform.position[2]);
+    Transform& cameraTransform = transforms.GetItemRef(camera.transformHandle);
+    // printf("Camera position [%f, %f, %f] \n", cameraTransform.position[0], cameraTransform.position[1], cameraTransform.position[2]);
     TransformUpdate(cameraTransform);
     glm_mat4_copy(cameraTransform.modelMatrix, camera.viewMatrix);
 
@@ -377,15 +350,11 @@ void StartFrame() {
         camera.nearPlane,
         camera.farPlane,
         camera.projectionMatrix);
-    // printf("Camera AR: %f (%d, %d)", camera.aspectRatio, mainWin.width, mainWin.height);
 }
 
 void EndFrame() {
     SwapBuffers(mainWin.dc);
 }
-
-vec3 ambientLightColor = {1.0f, 1.0f, 1.0f};
-float ambientIntensity = 0.1;
 
 void RenderOpaques() {
     glEnable(GL_DEPTH_TEST);
@@ -394,42 +363,59 @@ void RenderOpaques() {
     mat4 viewProjMatrix;
     glm_mat4_mul(camera.projectionMatrix, camera.viewMatrix, viewProjMatrix);
 
-    for (size_t i = 0; i < ObjectsCount; i ++) {
+    transforms.GetItemRef(mainLight.transformHandle);
 
-        RenderObject& obj = objects[i];
-        Transform& transform = GetTransform(obj.transformHandle);
-        TransformUpdate(transform);
+    std::vector<Slot<Transform>>& allTransforms = transforms.GetVector();
+
+    for (Slot<Transform>& temp : allTransforms) {
+        TransformUpdate(temp.data);
     }
 
-    Transform& cameraTransform = GetTransform(camera.transformHandle);
-    Transform& globalLightTransform = GetTransform(mainLight.transformHandle);
+    Transform& cameraTransform = transforms.GetItemRef(camera.transformHandle);
+    Transform& globalLightTransform = transforms.GetItemRef(mainLight.transformHandle);
     vec3 cameraViewDir;
     vec3 mainLightDir;
     Transform_GetFrw(cameraTransform, cameraViewDir);
     Transform_GetFrw(globalLightTransform, mainLightDir);
 
+    glUseProgram(default3dShader->GetShaderID());
+
     default3dShader->setVec3(ID_UNIFORM_VIEW_POS, cameraTransform.position);
     default3dShader->setVec3(ID_UNIFORM_AMBIENT_LIGHT_COLOR, ambientLightColor);
     default3dShader->setFloat(ID_UNIFORM_AMBIENT_LIGHT_INTENSITY, ambientIntensity);
 
-    default3dShader->setVec3("GLOBAL_LIGHT.direction", mainLightDir);
-    default3dShader->setVec3("GLOBAL_LIGHT.color", mainLight.color);
-    default3dShader->setFloat("GLOBAL_LIGHT.intensity", mainLight.intensity);
+    default3dShader->setVec3("DIRECTIONAL_LIGHT.direction", mainLightDir);
+    default3dShader->setVec3("DIRECTIONAL_LIGHT.color", mainLight.color);
+    default3dShader->setFloat("DIRECTIONAL_LIGHT.intensity", mainLight.intensity);
 
+    for (auto& objHandle : sceneObjectHandles) {
 
-    for (size_t i = 0; i < ObjectsCount; i ++) {
+        if (renderObjects.IsValid(objHandle) == false) {
+            continue;
+        }
+        RenderObject& obj = renderObjects.GetItemRef(objHandle);
+        Mesh& mesh = meshes.GetItemRef(obj.meshHandle);
+        Transform& transform = transforms.GetItemRef(obj.transformHandle);
 
-        RenderObject& obj = objects[i];
-        Mesh& mesh = meshes[obj.meshHandle-1];
-        Transform& transform = GetTransform(obj.transformHandle);
+        // LogHandle("rendering ", objHandle);
+        // LogHandle("mesh ", obj.meshHandle);
+        // LogHandle("transform ", obj.transformHandle);
+        // printf("opaque pos [%f, %f, %f] \n", transform.position[0], transform.position[1], transform.position[2]);
+        // printf("opaque scale [%f, %f, %f] \n", transform.scale[0], transform.scale[1], transform.scale[2]);
+        // printf("opaque rotation quat [%f, %f, %f, %f] \n", transform.rotation[0], transform.rotation[1], transform.rotation[2], transform.rotation[3]);
 
         mat4 mvp;
         glm_mat4_mul(viewProjMatrix, transform.modelMatrix, mvp);
 
-
         glUseProgram(obj.shaderId);
-        int mvpLocation = glGetUniformLocation(obj.shaderId, ID_UNIFORM_MVP);
-        glUniformMatrix4fv(mvpLocation, 1, GL_FALSE, (float*)mvp);
+
+        int model_Location = glGetUniformLocation(obj.shaderId, ID_UNIFORM_MODEL);
+        int view_Location = glGetUniformLocation(obj.shaderId, ID_UNIFORM_VIEW);
+        int proj_Location = glGetUniformLocation(obj.shaderId, ID_UNIFORM_PROJECTION);
+
+        glUniformMatrix4fv(model_Location, 1, GL_FALSE, (float*)transform.modelMatrix);
+        glUniformMatrix4fv(view_Location, 1, GL_FALSE, (float*)camera.viewMatrix);
+        glUniformMatrix4fv(proj_Location, 1, GL_FALSE, (float*)camera.projectionMatrix);
 
         glBindVertexArray(obj.vao);
         glDrawElements(GL_TRIANGLES, mesh.indexCount, GL_UNSIGNED_INT, nullptr);
@@ -463,9 +449,10 @@ void RenderUI() {
 void Animations() {
     float dt = Time_GetDelta();
     float rotDelta = 25.0f * dt;
-    for(auto& obj : objects) {
-        Transform& tr = GetTransform(obj.transformHandle);
-        RotateLocalY(tr, rotDelta);
+    for(auto& handle : sceneObjectHandles) {
+
+        // Transform& tr = transforms.GetItemRef(obj.transformHandle);
+        // RotateLocalY(tr, rotDelta);
     }
 }
 
@@ -473,8 +460,8 @@ void Animations() {
 
 void RenderLoop() {
     StartFrame();
-    // RenderBackground();
-    Animations();
+    RenderBackground();
+    // Animations();
 
     RenderOpaques();
     RenderUI();
@@ -490,7 +477,7 @@ static float cameraMoveSpeed = 2.5f;
 
 void GameInputs() {
     float dt = (float)Time_GetDelta();
-    Transform& cameraTransform = GetTransform(camera.transformHandle);
+    Transform& cameraTransform = transforms.GetItemRef(camera.transformHandle);
 
     vec3 localMove = {};
     float verticalShift = 0;
@@ -603,7 +590,8 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE prevInstance, LPSTR lpCmdLine,
     }
     Time_Init();
     Time_SetTargetFrameRate(60);
-    InitScene();
+    ReserveSpace();
+    InitTestScene();
     // int frames = 0;
     while (!mainWin.close)
     {

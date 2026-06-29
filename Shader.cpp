@@ -137,34 +137,43 @@ bool Shader::CheckCompileErrors(GLuint shaderID, int type) {
 
 
 // region Basic Properties Set
-void Shader::setBool(const std::string& name, bool value) const { 
-    glUniform1i(glGetUniformLocation(m_ShaderID, name.c_str()), (int)value);
+void Shader::setBool(const std::string& name, bool value) const {
+    int loc = glGetUniformLocation(m_ShaderID, name.c_str());
+    if (loc >= 0)
+        glUniform1i(loc, (int)value);
 }
 
-void Shader::setInt(const std::string& name, int value) const { 
-    glUniform1i(glGetUniformLocation(m_ShaderID, name.c_str()), value);
+void Shader::setInt(const std::string& name, int value) const {
+    int loc = glGetUniformLocation(m_ShaderID, name.c_str());
+    if (loc >= 0)
+        glUniform1i(loc, value);
 }
 
-void Shader::setFloat(const std::string& name, float value) const { 
-    glUniform1f(glGetUniformLocation(m_ShaderID, name.c_str()), value);
+void Shader::setFloat(const std::string& name, float value) const {
+    int loc = glGetUniformLocation(m_ShaderID, name.c_str());
+    if (loc >= 0)
+        glUniform1f(loc, value);
 }
 //endregion
 
 
-
 // region cglm
-// Handles vec3 (Positions, RGB Colors)
 void Shader::setVec3(const std::string& name, const vec3 v) const {
-    glUniform3fv(glGetUniformLocation(m_ShaderID, name.c_str()), 1, (const float*)v);
+    int loc = glGetUniformLocation(m_ShaderID, name.c_str());
+    if (loc >= 0) {
+        glUniform3fv(loc, 1, (const float*)v);
+    }
 }
-// Handles vec4 (Positions, RGBA Colors)
 void Shader::setVec4(const std::string& name, const vec4 v) const {
-    glUniform4fv(glGetUniformLocation(m_ShaderID, name.c_str()), 1, (const float*)v);
+    int loc = glGetUniformLocation(m_ShaderID, name.c_str());
+    if (loc >= 0) {
+        glUniform4fv(loc, 1, (const float*)v);
+    }
 }
-// Handles mat4 (Model, View, Projection Matrices)
-void Shader::setMat4(const std::string& name, const mat4 m) const { 
-    // cglm is natively column-major, matching OpenGL's layout perfectly (GL_FALSE)
-    glUniformMatrix4fv(glGetUniformLocation(m_ShaderID, name.c_str()), 1, GL_FALSE, (const float*)m);
+void Shader::setMat4(const std::string& name, const mat4 m) const {
+    int loc = glGetUniformLocation(m_ShaderID, name.c_str());
+    if (loc >= 0)
+        glUniformMatrix4fv(loc, 1, GL_FALSE, (const float*)m);
 }
 // endregion
 

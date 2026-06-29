@@ -9,14 +9,17 @@ out vec2 out_uv;
 out vec3 out_normal;
 out vec3 FragPos;
 
-uniform mat4 MATRIX_MVP;
+uniform mat4 MATRIX_MODEL;
+uniform mat4 MATRIX_VIEW;
+uniform mat4 MATRIX_PROJECTION;
+
 uniform float GLOBAL_TIME;
 
 void main(){
-    gl_Position = MATRIX_MVP * vec4(position, 1.0);
-    FragPos = gl_Position.xyz;
+    gl_Position = (MATRIX_PROJECTION * MATRIX_VIEW * MATRIX_MODEL) * vec4(position, 1.0);
+    FragPos = (MATRIX_MODEL * vec4(position, 1.0)).xyz;
 //    out_normal = vec3(0.0, 1.0, 0.0);
     out_normal = normalize(normal);
     out_uv = uv;
-    out_vertColor = vec4(0.2, 0.1, 0.2, 1.0);
+    out_vertColor = vec4(0.5, 0.5, 0.5, 1.0);
 }

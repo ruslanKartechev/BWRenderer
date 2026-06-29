@@ -12,7 +12,7 @@
 #include "Transform.h"
 #include "cglm/clipspace/persp_lh_no.h"
 #include "DataStructures.h"
-
+#include "Slot.h"
 
 enum class ELightType {
     Directional,
@@ -22,8 +22,8 @@ enum class ELightType {
 
 
 typedef struct {
-    size_t handle;
-    size_t transformHandle;
+    Handle handle;
+    Handle transformHandle;
     ELightType lightType;
     vec3 color;
     float intensity;
@@ -34,25 +34,10 @@ typedef struct {
 
 
 
-typedef struct Mesh{
-    float* vertexData = nullptr;
-    int* indexData = nullptr;
-
-    size_t handle;
-    int vertexDataCount;
-    int indexCount;
-    int stride;
-
-    int startIndexVertex = 0;
-    int startIndexUV = 0;
-    int startIndexColor = 0;
-    int startIndexNormals = 0;
-
-} Mesh;
 
 typedef struct {
-    int transformHandle;
-    int meshHandle;
+    Handle transformHandle;
+    Handle meshHandle;
     GLuint shaderId;
     GLuint vao;
     GLuint vbo;
@@ -69,6 +54,6 @@ typedef struct {
 
     mat4 viewMatrix;
     mat4 projectionMatrix;
-    size_t transformHandle;
+    Handle transformHandle;
 } Camera;
 

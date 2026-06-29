@@ -6,6 +6,22 @@ void Transform_Init(Transform& transform) {
     SET_VEC4(transform.rotation, 0.0f, 0.0f, 0.0f, 1.0f);
 }
 
+
+void Transform_SetLocalScaleVec(Transform& transform, vec3 scaleVec) {
+    transform.scale[0] = scaleVec[0];
+    transform.scale[1] = scaleVec[1];
+    transform.scale[2] = scaleVec[2];
+}
+
+
+void Transform_SetLocalScale(Transform& transform, float x, float y, float z) {
+    transform.scale[0] = x;
+    transform.scale[1] = y;
+    transform.scale[2] = z;
+}
+
+
+
 void SetColor3(vec3 color, float r, float g, float b) {
     color[0] = r;
     color[1] = g;
@@ -25,11 +41,26 @@ void Transform_SetWorldPosition(Transform& transform, float x, float y, float z)
     transform.position[2] = z;
 }
 
+void Transform_SetLocalPositionVec(Transform& transform, vec3 position) {
+    glm_vec3_copy(position, transform.position);
+}
+
 void Transform_SetLocalPosition(Transform& transform, float x, float y, float z) {
     transform.position[0] = x;
     transform.position[1] = y;
     transform.position[2] = z;
 }
+
+
+void Transform_SetRotationEulerVec(Transform& transform, vec3 vec)
+{
+    vec3 eulers;
+    eulers[0] = glm_rad(vec[0]);
+    eulers[1] = glm_rad(vec[1]);
+    eulers[2] = glm_rad(vec[2]);
+    glm_euler_xyz_quat(eulers, transform.rotation);
+}
+
 
 
 void Transform_SetRotationEulerDeg(

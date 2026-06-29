@@ -28,6 +28,8 @@ add_executable(
         Transform.cpp
         Transform.h
         DataStructures.h
+        Slot.h
+        Mesh.h
 )
 
 target_link_libraries(RenderGL glad opengl32 cglm stb_lib gdi32 winmm)

@@ -11,14 +11,23 @@ typedef struct {
 } Transform;
 
 void Transform_Init(Transform& transform);
+
+
+void Transform_SetLocalScaleVec(Transform& transform, vec3 scaleVec);
+void Transform_SetLocalScale(Transform& transform, float x, float y, float z);
+
+
+void Transform_SetRotationEulerVec(Transform& transform, vec3 eulers);
 void Transform_SetRotationEulerDeg(Transform& transform, float x, float y, float z);
 void Transform_SetRotationEulerRad(Transform& transform, float x, float y, float z);
+
 
 void SetColor3(vec3 color, float r, float g, float b);
 void SetColor4(vec4 color, float r, float g, float b, float a);
 
 void Transform_SetWorldPosition(Transform& transform, float x, float y, float z);
 void Transform_SetLocalPosition(Transform& transform, float x, float y, float z);
+void Transform_SetLocalPositionVec(Transform& transform, vec3 position);
 
 void Transform_GetFrw(Transform& transform, vec3 dest);
 void Transform_GetBack(Transform& transform, vec3 dest);
