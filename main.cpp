@@ -14,6 +14,10 @@
 #include <vector>
 #include "Slot.h"
 #include "Mesh.h"
+#include "assimp/assimp/Importer.hpp"
+#include "assimp/assimp/scene.h"
+#include "assimp/assimp/postprocess.h"
+
 
 #define HANDLE_INDEX(H) (H - 1)
 
