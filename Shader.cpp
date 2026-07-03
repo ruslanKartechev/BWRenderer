@@ -1,6 +1,4 @@
 #include "Shader.h"
-#include <fstream>
-#include <sstream>
 #include <iostream>
 #include "Application.h"
 #include "AssetManager.h"
@@ -9,9 +7,14 @@ static constexpr int TYPE_VERTEX = 0;
 static constexpr int TYPE_FRAGMENT = 1;
 static constexpr int TYPE_PROGRAM = 2;
 
+Shader::Shader() {}
 
 Shader::Shader(const char* shaderName) : m_ShaderID(0), m_isCompiled(false), m_hasErrors(false)
 {
+    SetName(shaderName);
+}
+
+void Shader::SetName(const char* shaderName) {
     std::string strName = Application::ResourcesPath  + "/Shaders/" + std::string(shaderName);
     m_vertexPath = (strName + ".vert");
     m_fragmentPath = (strName + ".frag");
@@ -40,7 +43,7 @@ bool Shader::IsCompiled() const {
     return m_isCompiled;
 }
 
-unsigned int Shader::GetShaderID() const {
+unsigned int Shader::GetShaderId() const {
     return m_ShaderID;
 }
 
@@ -58,8 +61,8 @@ int Shader::Compile() {
     bool didReadVert = AssetManager::ReadStringContent(vertexCode, m_vertexPath.c_str());
     bool didReadFrag = AssetManager::ReadStringContent(fragmentCode, m_fragmentPath.c_str());
 
-    //printf("VERTEX CODE! \n%s\n", vertexCode.c_str());
-    //printf("Shader CODE! \n%s\n", fragmentCode.c_str());
+    // printf("VERTEX CODE! \n%s\n", vertexCode.c_str());
+    // printf("Shader CODE! \n%s\n", fragmentCode.c_str());
 
     if (!didReadVert) {
         std::cerr << "Failed to load vertex shader! " << m_vertexPath.c_str() << std::endl;
@@ -69,7 +72,7 @@ int Shader::Compile() {
         std::cerr << "Failed to load fragment shader! " << m_fragmentPath.c_str() << std::endl;
         return 2;
     }
-    printf("--- step 2\n");
+    // printf("--- step 2\n");
     const char* strVert = vertexCode.c_str();
     const char* strFrag = fragmentCode.c_str();
 

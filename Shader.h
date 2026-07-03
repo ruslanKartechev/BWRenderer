@@ -7,6 +7,7 @@
 
 class Shader {
 public:
+    Shader();
 
     Shader(const char* shaderName);
     // Constructor reads and builds the shader
@@ -15,12 +16,14 @@ public:
     // Destructor clears the program from GPU memory
     ~Shader();
 
+    void SetName(const char* shaderName);
+
     // Activate the shader program
     void Use() const;
     int Compile();
 
     [[nodiscard]] bool IsCompiled() const;
-    [[nodiscard]] unsigned int GetShaderID() const;
+    [[nodiscard]] unsigned int GetShaderId() const;
 
     // Utility Uniform Setters
     void setBool(const std::string& name, bool value) const;

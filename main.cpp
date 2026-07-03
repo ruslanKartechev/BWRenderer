@@ -1,22 +1,24 @@
 #include <iostream>
+#include <vector>
 #include <glad/glad.h>
 #include <filesystem>
 #include "InputSystem.h"
-#include "cglm/cglm.h"
 #include "Application.h"
 #include "PlatformWin32.h"
 #include "Shader.h"
 #include "Texture.h"
 #include "GameTime.h"
 #include "Transform.h"
-#include "cglm/clipspace/persp_lh_no.h"
+#include "GameScene.h"
+
 #include "DataStructures.h"
-#include <vector>
+#include "cglm/cglm.h"
+#include "cglm/clipspace/persp_lh_no.h"
+
+#include "AssetManager.h"
+#include "RenderObject.h"
 #include "Slot.h"
-#include "Mesh.h"
-#include "assimp/assimp/Importer.hpp"
-#include "assimp/assimp/scene.h"
-#include "assimp/assimp/postprocess.h"
+#include "ShaderRegistry.h"
 
 
 #define HANDLE_INDEX(H) (H - 1)
@@ -41,6 +43,9 @@ const char* ID_UNIFORM_VIEW_POS = "VIEW_POS";
 const char* ID_UNIFORM_AMBIENT_LIGHT_COLOR = "AMBIENT_LIGHT_COLOR";
 const char* ID_UNIFORM_AMBIENT_LIGHT_INTENSITY = "AMBIENT_LIGHT_INTENSITY";
 
+static float cameraRotationSpeed = 6.0f;
+static float cameraMoveSpeed = 5.5f;
+
 
 // region Graphics Data Structures
 typedef struct {
@@ -62,24 +67,13 @@ typedef struct {
 static WindowParams mainWin = {};
 static Texture backgroundTexture;
 
+static ShaderRegistry s_shaderReg;
+static GameScene s_scene;
+
 static FrameBufferUI* fbBackground = nullptr;
 static FrameBufferUI* fbUI = nullptr;
-static Shader* default2dShader = nullptr;
-static Shader* default3dShader = nullptr;
-static vec4 backgroundColor = {0.8f, 0.5f, 0.76f, 1.0f};
+static GameScene scene {};
 
-static std::vector<Handle> sceneObjectHandles = {};
-
-
-static SlotMap<Mesh> meshes = {};
-static SlotMap<Transform> transforms = {};
-static SlotMap<RenderObject> renderObjects = {};
-
-static Camera camera = {};
-static Light mainLight;
-
-vec3 ambientLightColor = {0.4f, 1.0f, 1.0f};
-float ambientIntensity = 0.2;
 
 void LogHandle(const char* msg, const Handle& handle) {
 
@@ -111,73 +105,112 @@ void TransformUpdate(Transform& transform) {
 //endregion
 
 
-
-
 void InitMaterial(RenderObject& obj) {
-    obj.shaderId = default3dShader->GetShaderID();
-
+    for (auto& meshData : obj.meshData) {
+        meshData.hShader = s_shaderReg.default3D;
+    }
 }
 
 
-void BuildCubeMeshWithHandle(const Handle& handle) {
-    Mesh& mesh = meshes.GetItemRef(handle);
-    BuildCubeMesh(mesh);
+void BuildCubeMeshAt(const Handle& handle) {
+    Mesh& mesh = s_scene.meshes.GetItemRef(handle);
+    Mesh_DefaultCube(mesh);
+}
+void BuildPyramidMeshAt(const Handle& handle) {
+    Mesh& mesh = s_scene.meshes.GetItemRef(handle);
+    Mesh_DefaultCube(mesh);
+}
+void BuildSphereMeshAt(const Handle& handle) {
+    Mesh& mesh = s_scene.meshes.GetItemRef(handle);
+    Mesh_DefaultCube(mesh);
+}
+void BuildPlaneMeshAt(const Handle& handle) {
+    Mesh& mesh = s_scene.meshes.GetItemRef(handle);
+    Mesh_DefaultCube(mesh);
+}
+void BuildDonutMeshAt(const Handle& handle) {
+    Mesh& mesh = s_scene.meshes.GetItemRef(handle);
+    Mesh_DefaultCube(mesh);
+}
+void BuildCapsuleMeshAt(const Handle& handle) {
+    Mesh& mesh = s_scene.meshes.GetItemRef(handle);
+    Mesh_DefaultCube(mesh);
 }
 
 
-void AddRenderObj(const Handle& renderObjHandle,
-    const Handle& meshHandle,
-    const Handle& transformHandle)
+
+
+
+void AllocateGraphicsForObjectGL(RenderObject& obj)
 {
-    GLuint vao;
-    GLuint vbo;
-    GLuint ebo;
-    RenderObject& obj = renderObjects.GetItemRef(renderObjHandle);
-    obj.transformHandle = transformHandle;
-    obj.meshHandle = meshHandle;
-    Mesh& mesh = meshes.GetItemRef(meshHandle);
-    Transform& transform = transforms.GetItemRef(transformHandle);
-    Transform_Init(transform);
-
-    glGenVertexArrays(1, &vao);
-    glGenBuffers(1, &vbo);
-    glGenBuffers(1, &ebo);
-    glBindVertexArray(vao);
-
-    glBindBuffer(GL_ARRAY_BUFFER, vbo);
-    glBufferData(GL_ARRAY_BUFFER, sizeof(float) * mesh.vertexDataCount, mesh.vertexData, GL_DYNAMIC_DRAW);
-
-    glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, ebo);
-    glBufferData(GL_ELEMENT_ARRAY_BUFFER, sizeof(int) * mesh.indexCount, mesh.indexData, GL_DYNAMIC_DRAW);
-
-    int stride = mesh.stride * sizeof(float);
-    int attributeIdx = 0;
-    glVertexAttribPointer(attributeIdx, 3, GL_FLOAT, GL_FALSE, stride, (const void*)0); // XYZ
-    glEnableVertexAttribArray(attributeIdx);
-    attributeIdx++;
-    if (mesh.startIndexUV >= 0) {
-        glVertexAttribPointer(attributeIdx, 2, GL_FLOAT, GL_FALSE, stride, (const void*)(mesh.startIndexUV*sizeof(float))); // UV
-        glEnableVertexAttribArray(attributeIdx);
-        attributeIdx++;
-    }
-    if (mesh.startIndexNormals >= 0) {
-        glVertexAttribPointer(attributeIdx, 3, GL_FLOAT, GL_FALSE, stride, (const void*)(mesh.startIndexNormals*sizeof(float))); // XYZ normals
-        glEnableVertexAttribArray(attributeIdx);
-        attributeIdx++;
-    }
-    if (mesh.startIndexColor >= 0) {
-        glVertexAttribPointer(attributeIdx, 4, GL_FLOAT, GL_FALSE, stride, (const void*)(mesh.startIndexColor*sizeof(float))); // RGBA
-        glEnableVertexAttribArray(attributeIdx);
-        attributeIdx++;
+    obj.meshData.reserve(1);
+    if (obj.meshData.size() < 1) {
+        obj.meshData.resize(1);
     }
 
-    glBindVertexArray(0);
-    obj.vao = vao;
-    obj.vbo = vbo;
-    obj.ebo = ebo;
+    for (auto& meshRenderData : obj.meshData) {
 
-    sceneObjectHandles.push_back(renderObjHandle);
+        Mesh& mesh = s_scene.meshes.GetItemRef(meshRenderData.hMesh);
+
+        GLuint vao;
+        GLuint vbo;
+        GLuint ebo;
+
+        glGenVertexArrays(1, &vao);
+        glGenBuffers(1, &vbo);
+        glGenBuffers(1, &ebo);
+        glBindVertexArray(vao);
+
+        glBindBuffer(GL_ARRAY_BUFFER, vbo);
+        glBufferData(GL_ARRAY_BUFFER, sizeof(float) * mesh.vertexDataCount, mesh.vertexData, GL_DYNAMIC_DRAW);
+
+        glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, ebo);
+        glBufferData(GL_ELEMENT_ARRAY_BUFFER, sizeof(int) * mesh.indexCount, mesh.indexData, GL_DYNAMIC_DRAW);
+
+        int stride = mesh.stride * sizeof(float);
+        int attributeIdx = 0;
+        glVertexAttribPointer(attributeIdx, 3, GL_FLOAT, GL_FALSE, stride, (const void*)0); // XYZ
+        glEnableVertexAttribArray(attributeIdx);
+        attributeIdx++;
+        if (mesh.startIndexUV >= 0) {
+            glVertexAttribPointer(attributeIdx, 2, GL_FLOAT, GL_FALSE, stride, (const void*)(mesh.startIndexUV*sizeof(float))); // UV
+            glEnableVertexAttribArray(attributeIdx);
+            attributeIdx++;
+        }
+        if (mesh.startIndexNormals >= 0) {
+            glVertexAttribPointer(attributeIdx, 3, GL_FLOAT, GL_FALSE, stride, (const void*)(mesh.startIndexNormals*sizeof(float))); // XYZ normals
+            glEnableVertexAttribArray(attributeIdx);
+            attributeIdx++;
+        }
+        if (mesh.startIndexColor >= 0) {
+            glVertexAttribPointer(attributeIdx, 4, GL_FLOAT, GL_FALSE, stride, (const void*)(mesh.startIndexColor*sizeof(float))); // RGBA
+            glEnableVertexAttribArray(attributeIdx);
+            attributeIdx++;
+        }
+
+        glBindVertexArray(0);
+        meshRenderData.vao = vao;
+        meshRenderData.vbo = vbo;
+        meshRenderData.ebo = ebo;
+    }
 }
+
+void InitRenderObject1Mesh(Handle& objHandle, const Handle& trHandle, const Handle meshHandle, const Handle shaderHandle) {
+    RenderObject& obj = s_scene.renderObjects.GetItemRef(objHandle);
+    obj.hTransform = trHandle;
+    auto& tr = s_scene.transforms.GetItemRef(trHandle);
+    Transform_Init(tr);
+    obj.AppendNewMeshAndShader(meshHandle, shaderHandle);
+    AllocateGraphicsForObjectGL(obj);
+}
+
+void InitRenderObject(Handle& objHandle, Handle& trHandle) {
+    auto& tr = s_scene.transforms.GetItemRef(trHandle);
+    Transform_Init(tr);
+    auto& ro = s_scene.renderObjects.GetItemRef(objHandle);
+    ro.hTransform = trHandle;
+}
+
 
 void InitBackgroundQuad(FrameBufferUI& fbBackground) {
     // actual background quad
@@ -224,22 +257,24 @@ void InitBackgroundQuad(FrameBufferUI& fbBackground) {
     fbBackground.ebo = ebo;
     fbBackground.currentQuadsCount = 2;
     fbBackground.idxCount = startIdxCount;
-    fbBackground.shaderId = default2dShader->GetShaderID();
+    fbBackground.shaderId = s_shaderReg.GetDefault2D().GetShaderId();
 
 }
 
 
 void InitShaders() {
-    default2dShader = new Shader("Default2D");
-    default3dShader = new Shader("Default3D");
 
-    bool compiled2D = default2dShader->Compile() == 0;
-    bool compiled3D = default3dShader->Compile() == 0;
+    Shader& default3D = s_shaderReg.shaders.MakeNew(s_shaderReg.default3D);
+    Shader& default2D = s_shaderReg.shaders.MakeNew(s_shaderReg.default2D);
+    default3D.SetName("Default3D");
+    default2D.SetName("Default2D");
+    bool compiled3D = default3D.Compile();
+    bool compiled2D = default2D.Compile();
 
-    if (compiled2D)
-        printf("Successfully compiled Default 2D\n");
     if (compiled3D)
         printf("Successfully compiled Default 3D \n");
+    if (compiled2D)
+        printf("Successfully compiled Default 2D\n");
 }
 
 
@@ -256,12 +291,13 @@ void InitTextures() {
 }
 
 void InitCamera(const Handle& transformHandle) {
+    Camera& camera = s_scene.camera;
     camera.fieldOfView = 60.0f;
     camera.farPlane = 500.0f;
     camera.nearPlane = 0.1f;
     camera.aspectRatio = 1.0f;
     camera.transformHandle = transformHandle;
-    Transform& cameraTransform = transforms.GetItemRef(transformHandle);
+    Transform& cameraTransform = s_scene.transforms.GetItemRef(transformHandle);
     Transform_Init(cameraTransform);
     Transform_SetLocalPosition(cameraTransform, 0.0f, 1.0f, -6.0f);
     Transform_SetRotationEulerDeg(cameraTransform, 1.0f, 5.0f, 0.0f);
@@ -271,34 +307,37 @@ void InitCamera(const Handle& transformHandle) {
 
 
 void InitSceneLights(const Handle& transformHandle) {
-    mainLight.lightType = ELightType::Directional;
-    mainLight.transformHandle = transformHandle;
+    s_scene.mainLight.lightType = ELightType::Directional;
+    s_scene.mainLight.transformHandle = transformHandle;
 
-    SET_VEC3(mainLight.color, 1.0f, 1.0f, 1.0f);
-    Transform& lightTransform = transforms.GetItemRef(transformHandle);
+    SET_VEC3(s_scene.mainLight.color, 1.0f, 1.0f, 1.0f);
+    Transform& lightTransform = s_scene.transforms.GetItemRef(transformHandle);
     Transform_Init(lightTransform);
-    Transform_SetRotationEulerDeg(lightTransform, -45, -5 ,0);
+    Transform_SetRotationEulerDeg(lightTransform, 60, -30 ,0);
     Transform_SetWorldPosition(lightTransform, 0.0f, 10.0f, 0.0f);
     LogHandle("LIGHTS transform handle", transformHandle);
+
 }
+
 
 
 
 Handle AddDefaultCube_PosRotScale(vec3 position, vec3 rotation, vec3 scale) {
 
-    auto handleRenderObj = renderObjects.GetFreeHandle();
-    auto handleMesh = meshes.GetFreeHandle();
-    auto handleTransform = transforms.GetFreeHandle();
+    Handle handleRenderObj = s_scene.renderObjects.GetFreeHandle();
+    Handle handleMesh = s_scene.meshes.GetFreeHandle();
+    Handle handleTransform = s_scene.transforms.GetFreeHandle();
 
-    BuildCubeMeshWithHandle(handleMesh);
-    AddRenderObj(handleRenderObj, handleMesh, handleTransform);
+    BuildCubeMeshAt(handleMesh);
+    Transform& tr = s_scene.transforms.GetItemRef(handleTransform);
+    RenderObject& obj = s_scene.renderObjects.GetItemRef(handleRenderObj);
 
-    Transform& tr = transforms.GetItemRef(handleTransform);
+    InitRenderObject1Mesh(handleRenderObj, handleTransform, handleMesh,  s_shaderReg.default3D);
+    obj.SetName("Cube");
+
     Transform_SetLocalScaleVec(tr, scale);
     Transform_SetLocalPositionVec(tr, position);
     Transform_SetRotationEulerVec(tr, rotation);
-
-    InitMaterial(renderObjects.GetItemRef(handleRenderObj));
 
     return handleRenderObj;
 }
@@ -309,41 +348,114 @@ Handle AddDefaultCube_PosRot(vec3 position, vec3 rotation) {
 }
 
 
+void SetShaderHandlesIfNone() {
+
+    auto& vec = s_scene.renderObjects.GetVector();
+    for (auto& temp : vec) {
+        if (temp.data.shadersAssigned == false) {
+            temp.data.shadersAssigned = true;
+            for (auto& meshData : temp.data.meshData) {
+                meshData.hShader = s_shaderReg.default3D;
+            }
+        }
+    }
+}
+
+
+Handle LoadTableMesh(vec3 position, vec3 rotation, vec3 scale) {
+    Handle objHandle = AssetManager::LoadModel("upd_picnic table.fbx", s_scene);
+
+    RenderObject& ro = s_scene.renderObjects.GetItemRef(objHandle);
+    Transform& tr = s_scene.transforms.GetItemRef(ro.hTransform);
+
+    Handle meshH = ro.meshData[0].hMesh;
+    printf("-[New]- RO handle {%d, %d}\n", objHandle.index, objHandle.generation);
+    printf("-[New]- MESH handle {%d, %d}\n", meshH.index, meshH.generation);
+
+    AllocateGraphicsForObjectGL(ro);
+
+    Transform_SetLocalScaleVec(tr, scale);
+    Transform_SetLocalPositionVec(tr, position);
+    Transform_SetRotationEulerVec(tr, rotation);
+
+    Mesh& mesh = s_scene.meshes.GetItemRef(ro.meshData[0].hMesh);
+    Mesh_Print(mesh);
+
+    ro.SetName("upd_picnic table");
+    return objHandle;
+
+}
 
 void InitTestScene() {
-    printf("Init basic scene\n");
-    InitShaders();
-    InitTextures();
+    try {
+        printf("Init basic scene\n");
+        InitShaders();
+        InitTextures();
 
-    fbBackground = new FrameBufferUI();
-    InitBackgroundQuad(*fbBackground);
+        fbBackground = new FrameBufferUI();
+        InitBackgroundQuad(*fbBackground);
 
-    InitCamera(transforms.GetFreeHandle());
-    InitSceneLights(transforms.GetFreeHandle());
+        InitCamera(s_scene.transforms.GetFreeHandle());
+        InitSceneLights(s_scene.transforms.GetFreeHandle());
 
-    vec3 pos1 = {0.0f, -1.0f, 0.0f};
-    vec3 rot1 = {0.0f, 0.0f, 0.0f};
-    vec3 scale1 = {25.0f, 2.0f, 25.0f};
-    AddDefaultCube_PosRotScale(pos1, rot1, scale1);
-
-    vec3 pos2 = {1.5f, 1.0f, 6.0f};
-    vec3 rot2 = {0.0f, 0.0f, 0.0f};
-    AddDefaultCube_PosRot(pos2, rot2);
-
-    vec3 pos3 = {-1.0f, 1.0f, 2.5f};
-    vec3 rot3 = {0.0f, 0.0f, 0.0f};
-    AddDefaultCube_PosRot(pos3, rot3);
+        // floor
+        {
+            vec3 pos = {0.0f, -1.0f, 0.0f};
+            vec3 rot = {0.0f, 0.0f, 0.0f};
+            vec3 scaleFloor = {25.0f, 2.0f, 25.0f};
+            Handle objHandle = AddDefaultCube_PosRotScale(pos, rot, scaleFloor);
+            s_scene.existingObjects.push_back(objHandle);
+        }
+        // cube 1
+        {
+            vec3 pos = {4.0f, 1.0f, 0.0f};
+            vec3 rot = {0.0f, 0.0f, 0.0f};
+            vec3 scale = {1.0f, 1.0f, 1.0f};
+            Handle objHandle = AddDefaultCube_PosRotScale(pos, rot, scale);
+            s_scene.existingObjects.push_back(objHandle);
+        }
+        // cube 2
+        {
+            vec3 pos = {-4.0f, 1.0f, 0.0f};
+            vec3 rot = {0.0f, 0.0f, 0.0f};
+            vec3 scale = {1.0f, 1.0f, 1.0f};
+            Handle objHandle = AddDefaultCube_PosRotScale(pos, rot, scale);
+            s_scene.existingObjects.push_back(objHandle);
+        }
+        // cube 3
+        {
+            vec3 pos = {0.0f, 1.0f, 4.0f};
+            vec3 rot = {0.0f, 0.0f, 0.0f};
+            vec3 scale = {1.0f, 2.0f, 1.0f};
+            Handle objHandle = AddDefaultCube_PosRotScale(pos, rot, scale);
+            s_scene.existingObjects.push_back(objHandle);
+        }
+        // table
+        {
+            vec3 pos = {0.0f, 1.0f, 0.0f};
+            vec3 rot = {-90.0f, 0.0f, 0.0f};
+            vec3 scale = {0.01f, 0.01f, 0.01f};
+            Handle objHandle = LoadTableMesh(pos, rot, scale);
+            s_scene.existingObjects.push_back(objHandle);
+        }
+        SetShaderHandlesIfNone();
+    }
+    catch (std::exception& e) {
+        std::cerr << "Exception: " << e.what() << std::endl;
+    }
 
 }
 
 
 // region Loops
 void StartFrame() {
+    vec4& backgroundColor = s_scene.backgroundColor;
     glClearColor(backgroundColor[0], backgroundColor[1], backgroundColor[2], backgroundColor[3]);
     glClear(GL_DEPTH_BUFFER_BIT | GL_COLOR_BUFFER_BIT);
+    Camera& camera = s_scene.camera;
 
     camera.aspectRatio = (f32)mainWin.width / (f32)mainWin.height;
-    Transform& cameraTransform = transforms.GetItemRef(camera.transformHandle);
+    Transform& cameraTransform = s_scene.transforms.GetItemRef(camera.transformHandle);
     // printf("Camera position [%f, %f, %f] \n", cameraTransform.position[0], cameraTransform.position[1], cameraTransform.position[2]);
     TransformUpdate(cameraTransform);
     glm_mat4_copy(cameraTransform.modelMatrix, camera.viewMatrix);
@@ -363,73 +475,82 @@ void EndFrame() {
 void RenderOpaques() {
     glEnable(GL_DEPTH_TEST);
     glDepthFunc(GL_LEQUAL);
+    Camera& camera = s_scene.camera;
 
     mat4 viewProjMatrix;
     glm_mat4_mul(camera.projectionMatrix, camera.viewMatrix, viewProjMatrix);
 
-    transforms.GetItemRef(mainLight.transformHandle);
+    s_scene.transforms.GetItemRef(s_scene.mainLight.transformHandle);
 
-    std::vector<Slot<Transform>>& allTransforms = transforms.GetVector();
+    std::vector<Slot<Transform>>& allTransforms = s_scene.transforms.GetVector();
 
     for (Slot<Transform>& temp : allTransforms) {
         TransformUpdate(temp.data);
     }
 
-    Transform& cameraTransform = transforms.GetItemRef(camera.transformHandle);
-    Transform& globalLightTransform = transforms.GetItemRef(mainLight.transformHandle);
+    Transform& cameraTransform = s_scene.transforms.GetItemRef(camera.transformHandle);
+    Transform& globalLightTransform = s_scene.transforms.GetItemRef(s_scene.mainLight.transformHandle);
     vec3 cameraViewDir;
     vec3 mainLightDir;
     Transform_GetFrw(cameraTransform, cameraViewDir);
     Transform_GetFrw(globalLightTransform, mainLightDir);
 
-    glUseProgram(default3dShader->GetShaderID());
+    auto& shader = s_shaderReg.GetDefault3D();
+    glUseProgram(shader.GetShaderId());
+    shader.setVec3(ID_UNIFORM_VIEW_POS, cameraTransform.position);
+    shader.setVec3(ID_UNIFORM_AMBIENT_LIGHT_COLOR, s_scene.ambientLightColor);
+    shader.setFloat(ID_UNIFORM_AMBIENT_LIGHT_INTENSITY, s_scene.ambientIntensity);
+    shader.setVec3("DIRECTIONAL_LIGHT.direction", mainLightDir);
+    shader.setVec3("DIRECTIONAL_LIGHT.color", s_scene.mainLight.color);
+    shader.setFloat("DIRECTIONAL_LIGHT.intensity", s_scene.mainLight.intensity);
 
-    default3dShader->setVec3(ID_UNIFORM_VIEW_POS, cameraTransform.position);
-    default3dShader->setVec3(ID_UNIFORM_AMBIENT_LIGHT_COLOR, ambientLightColor);
-    default3dShader->setFloat(ID_UNIFORM_AMBIENT_LIGHT_INTENSITY, ambientIntensity);
+    glEnable(GL_CULL_FACE);
+    glCullFace(GL_FRONT);
 
-    default3dShader->setVec3("DIRECTIONAL_LIGHT.direction", mainLightDir);
-    default3dShader->setVec3("DIRECTIONAL_LIGHT.color", mainLight.color);
-    default3dShader->setFloat("DIRECTIONAL_LIGHT.intensity", mainLight.intensity);
-
-    for (auto& objHandle : sceneObjectHandles) {
-
-        if (renderObjects.IsValid(objHandle) == false) {
+    for (auto& objHandle : s_scene.existingObjects) {
+        if (s_scene.renderObjects.IsValid(objHandle) == false) {
             continue;
         }
-        RenderObject& obj = renderObjects.GetItemRef(objHandle);
-        Mesh& mesh = meshes.GetItemRef(obj.meshHandle);
-        Transform& transform = transforms.GetItemRef(obj.transformHandle);
+        RenderObject& obj = s_scene.renderObjects.GetItemRef(objHandle);
 
-        // LogHandle("rendering ", objHandle);
-        // LogHandle("mesh ", obj.meshHandle);
-        // LogHandle("transform ", obj.transformHandle);
-        // printf("opaque pos [%f, %f, %f] \n", transform.position[0], transform.position[1], transform.position[2]);
-        // printf("opaque scale [%f, %f, %f] \n", transform.scale[0], transform.scale[1], transform.scale[2]);
-        // printf("opaque rotation quat [%f, %f, %f, %f] \n", transform.rotation[0], transform.rotation[1], transform.rotation[2], transform.rotation[3]);
+        Transform& transform = s_scene.transforms.GetItemRef(obj.hTransform);
+
+        // printf("---- Rendering object %s\n", obj.name.c_str());
+        // printf("Scale %f\n", transform.scale[0]);
+        // printf("Position %f, %f, %f\n", transform.position[0], transform.position[1], transform.position[2]);
 
         mat4 mvp;
         glm_mat4_mul(viewProjMatrix, transform.modelMatrix, mvp);
 
-        glUseProgram(obj.shaderId);
+        for (auto& renderData : obj.meshData) {
 
-        int model_Location = glGetUniformLocation(obj.shaderId, ID_UNIFORM_MODEL);
-        int view_Location = glGetUniformLocation(obj.shaderId, ID_UNIFORM_VIEW);
-        int proj_Location = glGetUniformLocation(obj.shaderId, ID_UNIFORM_PROJECTION);
+            shader = s_shaderReg.GetShader(renderData.hShader);
+            Mesh& mesh = s_scene.meshes.GetItemRef(renderData.hMesh);
+            // Mesh_Print(mesh);
+            auto shaderId = shader.GetShaderId();
 
-        glUniformMatrix4fv(model_Location, 1, GL_FALSE, (float*)transform.modelMatrix);
-        glUniformMatrix4fv(view_Location, 1, GL_FALSE, (float*)camera.viewMatrix);
-        glUniformMatrix4fv(proj_Location, 1, GL_FALSE, (float*)camera.projectionMatrix);
+            int model_Location = glGetUniformLocation(shaderId, ID_UNIFORM_MODEL);
+            int view_Location = glGetUniformLocation(shaderId, ID_UNIFORM_VIEW);
+            int proj_Location = glGetUniformLocation(shaderId, ID_UNIFORM_PROJECTION);
 
-        glBindVertexArray(obj.vao);
-        glDrawElements(GL_TRIANGLES, mesh.indexCount, GL_UNSIGNED_INT, nullptr);
-        glBindVertexArray(0);
+            glUniformMatrix4fv(model_Location, 1, GL_FALSE, (float*)transform.modelMatrix);
+            glUniformMatrix4fv(view_Location, 1, GL_FALSE, (float*)camera.viewMatrix);
+            glUniformMatrix4fv(proj_Location, 1, GL_FALSE, (float*)camera.projectionMatrix);
+
+            glUseProgram(shaderId);
+
+            glBindVertexArray(renderData.vao);
+            glDrawElements(GL_TRIANGLES, mesh.indexCount, GL_UNSIGNED_INT, nullptr);
+            glBindVertexArray(0);
+        }
     }
     glBindVertexArray(0);
 }
 
+
 void RenderBackground() {
     glDisable(GL_DEPTH_TEST);
+    glDisable(GL_CULL_FACE);
 
     if (fbBackground == nullptr) {
         std::cout<<"nullptr\n";
@@ -447,14 +568,15 @@ void RenderBackground() {
 
 void RenderUI() {
     glDisable(GL_DEPTH_TEST);
+    glDisable(GL_CULL_FACE);
+
 }
 
 
 void Animations() {
     float dt = Time_GetDelta();
     float rotDelta = 25.0f * dt;
-    for(auto& handle : sceneObjectHandles) {
-
+    for(auto& handle : s_scene.existingObjects) {
         // Transform& tr = transforms.GetItemRef(obj.transformHandle);
         // RotateLocalY(tr, rotDelta);
     }
@@ -475,13 +597,11 @@ void RenderLoop() {
 
 
 
-static float cameraRotationSpeed = 3.0f;
-static float cameraMoveSpeed = 2.5f;
 
 
 void GameInputs() {
     float dt = (float)Time_GetDelta();
-    Transform& cameraTransform = transforms.GetItemRef(camera.transformHandle);
+    Transform& cameraTransform = s_scene.transforms.GetItemRef(s_scene.camera.transformHandle);
 
     vec3 localMove = {};
     float verticalShift = 0;
@@ -571,8 +691,31 @@ void FetchProjectPath(std::string &exePath, std::string &resourcesPat) {
 }
 
 
+void MakeConsole() {
+    if (AllocConsole()) {
+        FILE* fpOut;
+        freopen_s(&fpOut, "CONOUT$", "w", stdout);
+        FILE* fpErr;
+        freopen_s(&fpErr, "CONOUT$", "w", stderr);
+        std::ios::sync_with_stdio(true);
+        SetConsoleTitle(TEXT("Console Output Window"));
+    }
+    else {
+        printf("Failed to allocate console");
+    }
+}
+
+void SpinWait() {
+    while (true) {
+        Sleep(100);
+    }
+}
+
 
 int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE prevInstance, LPSTR lpCmdLine, int nShowCmd) {
+
+    MakeConsole();
+
     FetchProjectPath(Application::RootPath, Application::ResourcesPath);
     printf("-- RootPath %s,  ResourcesPath %s \n", Application::RootPath.c_str(), Application::ResourcesPath.c_str());
 
@@ -592,6 +735,11 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE prevInstance, LPSTR lpCmdLine,
         std::cerr << "FAILED TO LOAD WIN AND GL\n";
         return -10;
     }
+
+    // AssetManager::LoadModel("upd_picnic table.fbx");
+    // SpinWait();
+    // return -1;
+
     Time_Init();
     Time_SetTargetFrameRate(60);
     ReserveSpace();
@@ -606,7 +754,8 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE prevInstance, LPSTR lpCmdLine,
         RenderLoop();
         GameLoop();
     }
-    std::cout<<"Main Loop terminated\n";
+    std::cout<<"Main Loop terminated. SPIN\n";
+    // SpinWait();
     return 0;
 }
 

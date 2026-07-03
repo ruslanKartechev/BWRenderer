@@ -3,9 +3,18 @@ project(RenderGL C CXX)
 
 set(CMAKE_CXX_STANDARD 23)
 
-add_library(assimp STATIC IMPORTED)
-set_target_properties(assimp PROPERTIES IMPORTED_LOCATION "${CMAKE_CURRENT_SOURCE_DIR}/assimp/lib/assimp-vc143-mt.lib")
+add_library(assimp SHARED IMPORTED)
+
+
+set_target_properties(assimp PROPERTIES IMPORTED_LOCATION_RELEASE "${CMAKE_CURRENT_SOURCE_DIR}/assimp/release/assimp-vc143-mt.dll")
+set_target_properties(assimp PROPERTIES IMPORTED_LOCATION_DEBUG "${CMAKE_CURRENT_SOURCE_DIR}/assimp/debug/assimp-vc143-mt.dll")
+
+set_target_properties(assimp PROPERTIES IMPORTED_IMPLIB_RELEASE "${CMAKE_CURRENT_SOURCE_DIR}/assimp/release/assimp-vc143-mt.lib")
+set_target_properties(assimp PROPERTIES IMPORTED_IMPLIB_DEBUG "${CMAKE_CURRENT_SOURCE_DIR}/assimp/debug/assimp-vc143-mt.lib")
+
+
 target_include_directories(assimp INTERFACE "${CMAKE_CURRENT_SOURCE_DIR}/assimp")
+
 
 add_subdirectory("cglm")
 add_subdirectory("stb")
@@ -16,11 +25,12 @@ add_library(glad glad/src/glad.c)
 
 add_executable( RenderGL  WIN32  main.cpp
         PlatformWin32.cpp
+        Shader.h
         Shader.cpp
-        Application.cpp
         Application.h
-        AssetManager.cpp
+        Application.cpp
         AssetManager.h
+        AssetManager.cpp
         Texture.cpp
         Texture.h
         InputSystem.cpp
@@ -30,10 +40,33 @@ add_executable( RenderGL  WIN32  main.cpp
         GameTime.h
         Transform.cpp
         Transform.h
-        DataStructures.h
         Slot.h
+        ShaderRegistry.h
+        ShaderRegistry.cpp
         Mesh.h
+        Mesh.cpp
+        DataStructures.h
+        RenderObject.cpp
+        RenderObject.h
+        GameScene.cpp
+        GameScene.h
 )
 
 
 target_link_libraries(RenderGL glad opengl32 cglm stb_lib gdi32 winmm assimp)
+
+
+message(STATUS "POST BUILD 1...")
+message(STATUS "POST BUILD 2... ${TARGET_RUNTIME_DLLS}")
+message(STATUS "POST BUILD 3... ${TARGET_FILE_DIR}")
+
+if (WIN32)
+    add_custom_command(
+            TARGET RenderGL POST_BUILD
+            COMMAND ${CMAKE_COMMAND} -E copy_if_different
+            "$<TARGET_RUNTIME_DLLS:RenderGL>"
+            "$<TARGET_FILE_DIR:RenderGL>"
+            COMMAND_EXPAND_LISTS
+    )
+endif()
+

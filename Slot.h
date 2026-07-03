@@ -13,6 +13,7 @@ template <typename T>
 struct Slot {
     T data;
     u32 generation = 0;
+    bool active;
 };
 
 
@@ -25,7 +26,6 @@ private:
     T nullItem;
 
 public:
-
     u32 GetSize() {
         return slots.size();
     }
@@ -38,26 +38,7 @@ public:
         slots.reserve(reservedMemorySlots);
     }
 
-    Handle Insert(const T& item) {
-        uint32_t index;
 
-        // 1. If we have a deleted slot, reuse it!
-        if (!freeIndices.empty()) {
-            index = freeIndices.back();
-            freeIndices.pop_back();
-
-            slots[index].data = item;
-            slots[index].active = true;
-            slots[index].generation++; // Increment generation!
-        }
-        // 2. Otherwise, grow the vector dynamically
-        else {
-            index = static_cast<uint32_t>(slots.size());
-            slots.push_back({item, 1, true});
-        }
-
-        return Handle{ index, slots[index].generation };
-    }
 
     void Remove(Handle handle) {
         if (IsValid(handle)) {
@@ -84,6 +65,7 @@ public:
         if (IsValid(handle)) {
             return slots[handle.index].data;
         }
+        printf("null item return!\n");
         return nullItem;
     }
 
@@ -96,8 +78,8 @@ public:
         return slots;
     }
 
-
-
+    /// Will either find a vacant unused object inside internal buffer or extend the buffer and create a new object.
+    /// Returns a handle to a slot in the internal buffer
     Handle GetFreeHandle() {
         u32 index;
         // Try reuse existing
@@ -113,11 +95,37 @@ public:
             u32 generation = 1;
             index = static_cast<u32>(slots.size());
             Slot<T> item = { T(), generation};
+
             slots.push_back(item);
         }
         Slot<T>& outSlot = slots[index];
         return { index, outSlot.generation };
     }
 
+
+    /// Will either find a vacant unused object inside internal buffer or extend the buffer and create a new object.
+    /// Returns a reference to an object inside internal buffer and a handle as out param.
+    T& MakeNew(Handle& outHandle) {
+        outHandle = GetFreeHandle();
+        return slots[outHandle.index].data;
+        // uint32_t index;
+        // // REUSE a slot if it has been deleted
+        // if (!freeIndices.empty()) {
+        //     index = freeIndices.back();
+        //     freeIndices.pop_back();
+        //     auto& slot = slots[index];
+        //     slot.active = true;
+        //     slot.generation += 1; // Increment generation!
+        //     outHandle = Handle{ index, slots[index].generation };
+        //     return slot.data;
+        // }
+        // // Extend vector if no slot is vacant
+        // index = static_cast<uint32_t>(slots.size());
+        // slots.resize(index + 4);
+        // auto& slot = slots[index];
+        // slot.active = true;
+        // outHandle = Handle{ index, slots[index].generation };
+        // return slot.data;
+    }
 
 };

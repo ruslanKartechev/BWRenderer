@@ -1,17 +1,4 @@
 #pragma once
-#include <iostream>
-#include <glad/glad.h>
-#include <filesystem>
-#include "InputSystem.h"
-#include "cglm/cglm.h"
-#include "Application.h"
-#include "PlatformWin32.h"
-#include "Shader.h"
-#include "Texture.h"
-#include "GameTime.h"
-#include "Transform.h"
-#include "cglm/clipspace/persp_lh_no.h"
-#include "DataStructures.h"
 #include "Slot.h"
 
 enum class ELightType {
@@ -20,8 +7,7 @@ enum class ELightType {
     Spot
 };
 
-
-typedef struct {
+struct Light{
     Handle handle;
     Handle transformHandle;
     ELightType lightType;
@@ -29,24 +15,11 @@ typedef struct {
     float intensity;
     float angleInner;
     float angleOuter;
-} Light;
+};
 
 
 
-
-
-typedef struct {
-    Handle transformHandle;
-    Handle meshHandle;
-    GLuint shaderId;
-    GLuint vao;
-    GLuint vbo;
-    GLuint ebo;
-} RenderObject;
-
-
-
-typedef struct {
+struct Camera{
     float fieldOfView;
     float aspectRatio;
     float nearPlane;
@@ -55,5 +28,8 @@ typedef struct {
     mat4 viewMatrix;
     mat4 projectionMatrix;
     Handle transformHandle;
-} Camera;
+};
+
+
+
 
