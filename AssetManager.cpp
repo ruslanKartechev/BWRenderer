@@ -118,8 +118,8 @@ void ParseAssimpMesh(const aiMesh& ai_mesh, Mesh& out_mesh) {
 Handle ParseIntoRenderObject(aiNode* node, const aiScene& aiScene, GameScene& gameScene) {
 
     Handle objHandle;
-    RenderObject& renderObject = gameScene.renderObjects.MakeNew(objHandle);
-    Transform& objTransform = gameScene.transforms.MakeNew(renderObject.hTransform);
+    RenderObject& renderObject = gameScene.renderObjects.GetNewObjectAndHandle(objHandle);
+    Transform& objTransform = gameScene.transforms.GetNewObjectAndHandle(renderObject.hTransform);
     Transform_Init(objTransform);
 
     renderObject.meshData.resize(node->mNumMeshes);
@@ -135,10 +135,10 @@ Handle ParseIntoRenderObject(aiNode* node, const aiScene& aiScene, GameScene& ga
         aiMesh& aiMesh = *aiScene.mMeshes[idx];
 
         Handle hMesh;
-        Mesh& gameMesh = gameScene.meshes.MakeNew(hMesh);
+        Mesh& gameMesh = gameScene.meshes.GetNewObjectAndHandle(hMesh);
         ParseAssimpMesh(aiMesh, gameMesh);
-        printf("!! MESH HDL !! obj handle %d, %d\n", hMesh.index, hMesh.generation);
-        Mesh_Print(gameMesh);
+        // printf("!! MESH HDL !! obj handle %d, %d\n", hMesh.index, hMesh.generation);
+        // Mesh_Print(gameMesh);
 
         renderMeshCount++;
         if (renderObject.meshData.size() < renderMeshCount) {
@@ -147,22 +147,18 @@ Handle ParseIntoRenderObject(aiNode* node, const aiScene& aiScene, GameScene& ga
         MeshRenderData& renderData = renderObject.meshData[renderMeshCount-1];
         renderData.hMesh = hMesh;
     }
-    printf("Returninig obj handle %d, %d\n", objHandle.index, objHandle.generation);
     return objHandle;
 }
 
 
 void ParseSceneRecursive(aiNode* node, const aiScene& aiScene, GameScene& gameScene, Handle& rootHandle) {
-
     if(node->mNumMeshes > 0) {
-        Handle tempHandle = ParseIntoRenderObject(node, aiScene, gameScene);
+        Handle newObjHandle = ParseIntoRenderObject(node, aiScene, gameScene);
         if (rootHandle.index == 0 && rootHandle.generation == 0) {
-
-            rootHandle.generation = tempHandle.generation;
-            rootHandle.index = tempHandle.index;
+            rootHandle.generation = newObjHandle.generation;
+            rootHandle.index = newObjHandle.index;
         }
     }
-
     for (size_t i = 0; i < node->mNumChildren; i++) {
         ParseSceneRecursive(node->mChildren[i], aiScene, gameScene, rootHandle);
     }
@@ -172,8 +168,6 @@ void ParseSceneRecursive(aiNode* node, const aiScene& aiScene, GameScene& gameSc
 Handle AssetManager::LoadModel(const char* path, GameScene& gameScene)
 {
     auto filePath = GetGlobalPathModel(path);
-    std::cout << "Full model path: " << filePath << std::endl;
-
     Assimp::Importer importer;
     const aiScene* scene = importer.ReadFile(filePath, aiProcess_Triangulate | aiProcess_FlipUVs | aiProcess_GenSmoothNormals);
     if (scene == nullptr) {
@@ -184,10 +178,7 @@ Handle AssetManager::LoadModel(const char* path, GameScene& gameScene)
         std::cerr << "The root node is null!" << std::endl;
         return {0,0};
     }
-
     Handle rootHandle = {0,0};
     ParseSceneRecursive(scene->mRootNode, *scene, gameScene, rootHandle);
-
-    printf("FINAL Returninig obj handle %d, %d\n", rootHandle.index, rootHandle.generation);
     return rootHandle;
 }

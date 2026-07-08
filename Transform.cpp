@@ -6,6 +6,21 @@ void Transform_Init(Transform& transform) {
     SET_VEC4(transform.rotation, 0.0f, 0.0f, 0.0f, 1.0f);
 }
 
+void Transform_SetRotationEulerDegVec(Transform& transform, vec3 angles) {
+    mat4 matrix;
+    glm_euler_xyz(angles, matrix);
+    glm_mat4_quat(matrix, transform.rotation);
+}
+
+void Transform_UpdateMatrices(Transform& transform)
+{
+    glm_mat4_identity(transform.modelMatrix);
+    glm_translate(transform.modelMatrix, transform.position);
+    mat4 rotMat;
+    glm_quat_mat4(transform.rotation, rotMat);
+    glm_mat4_mul(transform.modelMatrix, rotMat, transform.modelMatrix);
+    glm_scale(transform.modelMatrix, transform.scale);
+}
 
 void Transform_SetLocalScaleVec(Transform& transform, vec3 scaleVec) {
     transform.scale[0] = scaleVec[0];
@@ -40,6 +55,11 @@ void Transform_SetWorldPosition(Transform& transform, float x, float y, float z)
     transform.position[1] = y;
     transform.position[2] = z;
 }
+void Transform_SetWorldPositionVec(Transform& transform, vec3 pos) {
+    transform.position[0] = pos[0];
+    transform.position[1] = pos[1];
+    transform.position[2] = pos[2];
+}
 
 void Transform_SetLocalPositionVec(Transform& transform, vec3 position) {
     glm_vec3_copy(position, transform.position);
@@ -51,6 +71,13 @@ void Transform_SetLocalPosition(Transform& transform, float x, float y, float z)
     transform.position[2] = z;
 }
 
+void Transform_SetLocalPositionRotationScale(Transform& transform, vec3 position, vec3 eulers, vec3 scale) {
+    glm_vec3_copy(position, transform.position);
+    // glm_euler_xyz_quat(eulers, transform.rotation);
+    glm_euler_yxz_quat(eulers, transform.rotation);
+    glm_vec3_copy(scale, transform.scale);
+}
+
 
 void Transform_SetRotationEulerVec(Transform& transform, vec3 vec)
 {
@@ -58,7 +85,9 @@ void Transform_SetRotationEulerVec(Transform& transform, vec3 vec)
     eulers[0] = glm_rad(vec[0]);
     eulers[1] = glm_rad(vec[1]);
     eulers[2] = glm_rad(vec[2]);
-    glm_euler_xyz_quat(eulers, transform.rotation);
+    // glm_euler_xyz_quat(eulers, transform.rotation);
+    glm_euler_yxz_quat(eulers, transform.rotation);
+
 }
 
 

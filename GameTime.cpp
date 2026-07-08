@@ -84,3 +84,13 @@ void Time_Update() {
     s_lastCounter = counter.QuadPart;
     s_framesCount++;
 }
+
+
+
+
+
+
+
+
+
+

@@ -9,6 +9,16 @@ static constexpr int TYPE_PROGRAM = 2;
 
 Shader::Shader() {}
 
+// Shader::Shader(Shader&& other) noexcept
+//     : m_ShaderID(other.m_ShaderID),
+//       m_vertexPath(std::move(other.m_vertexPath)),
+//       m_fragmentPath(std::move(other.m_fragmentPath)),
+//       m_isCompiled(other.m_isCompiled),
+//       m_hasErrors(other.m_hasErrors)
+// {
+//     other.m_ShaderID = 0; // Steal the ID, prevent old object from deleting it
+// }
+
 Shader::Shader(const char* shaderName) : m_ShaderID(0), m_isCompiled(false), m_hasErrors(false)
 {
     SetName(shaderName);
@@ -47,9 +57,12 @@ unsigned int Shader::GetShaderId() const {
     return m_ShaderID;
 }
 
+std::string Shader::GetName() const {
+    return m_vertexPath;
+}
 
 
-int Shader::Compile() {
+int Shader::LoadAndCompile() {
     // Update cached paths
     // Clean up existing program if re-compiling with this instance
     if (m_ShaderID != 0) {
@@ -104,21 +117,17 @@ int Shader::Compile() {
 
     bool success = CheckCompileErrors(m_ShaderID, TYPE_PROGRAM);
     if (!success) {
+        m_isCompiled = false;
+        glDeleteProgram(m_ShaderID);
+        m_ShaderID = 0;
+        return 10;
         std::cerr << "Failed error CHECK FOR PROGRAM!" << std::endl;
         return 150;
     }
     // Always detach and delete intermediate shader objects after linking
     glDeleteShader(idVert);
     glDeleteShader(idFrag);
-
-    if (!success) {
-        m_isCompiled = false;
-        glDeleteProgram(m_ShaderID);
-        m_ShaderID = 0;
-        return 10;
-    }
     m_isCompiled = true;
-    std::cout << "compiled everything\n";
     return 0;
 }
 

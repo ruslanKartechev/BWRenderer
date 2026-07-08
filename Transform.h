@@ -12,7 +12,11 @@ typedef struct {
 
 void Transform_Init(Transform& transform);
 
+void Transform_UpdateMatrices(Transform& transform);
 
+void Transform_SetLocalPositionRotationScale(Transform& transform, vec3 position, vec3 eulers, vec3 scale);
+
+void Transform_SetRotationEulerDegVec(Transform& transform, vec3 angles);
 void Transform_SetLocalScaleVec(Transform& transform, vec3 scaleVec);
 void Transform_SetLocalScale(Transform& transform, float x, float y, float z);
 
@@ -26,6 +30,8 @@ void SetColor3(vec3 color, float r, float g, float b);
 void SetColor4(vec4 color, float r, float g, float b, float a);
 
 void Transform_SetWorldPosition(Transform& transform, float x, float y, float z);
+void Transform_SetWorldPositionVec(Transform& transform, vec3 pos);
+
 void Transform_SetLocalPosition(Transform& transform, float x, float y, float z);
 void Transform_SetLocalPositionVec(Transform& transform, vec3 position);
 

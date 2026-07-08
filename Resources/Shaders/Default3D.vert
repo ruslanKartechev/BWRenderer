@@ -12,14 +12,13 @@ out vec3 FragPos;
 uniform mat4 MATRIX_MODEL;
 uniform mat4 MATRIX_VIEW;
 uniform mat4 MATRIX_PROJECTION;
-
 uniform float GLOBAL_TIME;
 
 void main(){
     gl_Position = (MATRIX_PROJECTION * MATRIX_VIEW * MATRIX_MODEL) * vec4(position, 1.0);
     FragPos = (MATRIX_MODEL * vec4(position, 1.0)).xyz;
-//    out_normal = vec3(0.0, 1.0, 0.0);
-    out_normal = normalize(normal);
+    mat3 normalMatrix = mat3(transpose(inverse(MATRIX_MODEL)));
+    out_normal = normalize(normalMatrix * normal);
     out_uv = uv;
-    out_vertColor = vec4(0.5, 0.5, 0.5, 1.0);
+    out_vertColor = vec4(0.75, 0.75, 0.75, 1.0);
 }

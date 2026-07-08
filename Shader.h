@@ -2,11 +2,18 @@
 
 #include <string>
 #include <cglm/cglm.h>
-#include <glad/glad.h>
 
 
 class Shader {
 public:
+
+
+    // Shader(const Shader&) = delete;
+    // Shader& operator=(const Shader&) = delete;
+    //
+    // Shader(Shader&&) noexcept;
+    // Shader& operator=(Shader&&) noexcept = default;
+
     Shader();
 
     Shader(const char* shaderName);
@@ -18,9 +25,11 @@ public:
 
     void SetName(const char* shaderName);
 
+    [[nodiscard]] std::string GetName() const;
+
     // Activate the shader program
     void Use() const;
-    int Compile();
+    int LoadAndCompile();
 
     [[nodiscard]] bool IsCompiled() const;
     [[nodiscard]] unsigned int GetShaderId() const;

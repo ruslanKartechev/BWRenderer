@@ -40,7 +40,7 @@ add_executable( RenderGL  WIN32  main.cpp
         GameTime.h
         Transform.cpp
         Transform.h
-        Slot.h
+        SlotsMap.h
         ShaderRegistry.h
         ShaderRegistry.cpp
         Mesh.h
@@ -50,6 +50,11 @@ add_executable( RenderGL  WIN32  main.cpp
         RenderObject.h
         GameScene.cpp
         GameScene.h
+        Handle.h
+        GraphicsGL.cpp
+        GraphicsGL.h
+        Material.cpp
+        Material.h
 )
 
 

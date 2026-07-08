@@ -1,5 +1,5 @@
 #pragma once
-#include "Slot.h"
+#include "SlotsMap.h"
 
 enum class ELightType {
     Directional,

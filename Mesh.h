@@ -1,5 +1,5 @@
 #pragma once
-#include "Slot.h"
+#include "SlotsMap.h"
 #include "glad/glad.h"
 
 
@@ -32,7 +32,8 @@ void Mesh_DefaultCapsule(Mesh& mesh);
 void Mesh_DefaultPlane(Mesh& mesh);
 void Mesh_DefaultQuad(Mesh& mesh);
 void Mesh_DefaultDonut(Mesh& mesh);
-
+void Mesh_DefaultPyramid(Mesh& mesh);
+void Mesh_DefaultCube(Mesh& mesh);
 void ClearMesh(Mesh& mesh);
 
-void Mesh_DefaultCube(Mesh& mesh);
+void Mesh_DefaultCutCone(Mesh& mesh);

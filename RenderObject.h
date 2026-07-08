@@ -1,10 +1,7 @@
 #pragma once
-#include <iostream>
-#include <glad/glad.h>
-#include "Transform.h"
-#include "DataStructures.h"
 #include "Mesh.h"
-#include "Slot.h"
+#include "SlotsMap.h"
+#include <string>
 
 class RenderObject {
 public:
