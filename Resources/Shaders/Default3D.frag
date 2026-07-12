@@ -14,9 +14,11 @@ in vec3 out_normal;
 in vec3 FragPos;
 
 uniform Light DIRECTIONAL_LIGHT;
-uniform vec3 AMBIENT_LIGHT_COLOR;
 uniform vec3 VIEW_POS;
-uniform float AMBIENT_LIGHT_INTENSITY;
+uniform vec3 _AMBIENT_LIGHT_COLOR;
+uniform float _AMBIENT_LIGHT_INTENSITY;
+uniform float _SPECULAR_POWER;
+uniform sampler2D _BASE_MAP;
 
 void main(){
     float specularStrength = 0.5;
@@ -31,7 +33,8 @@ void main(){
     float spec = pow(max(dot(viewDir, reflectDir), 0.0), 25);
     vec3 specular = specularStrength * spec * DIRECTIONAL_LIGHT.color;
     // Ambient + Diffuse + Specular
-    vec3 result = (AMBIENT_LIGHT_COLOR * AMBIENT_LIGHT_INTENSITY) + diffuse + specular;
+    vec3 result = (_AMBIENT_LIGHT_COLOR * _AMBIENT_LIGHT_INTENSITY) + diffuse + specular;
 
-    FragColor = out_vertColor * vec4(result, 1.0);
+    float t = 0.1;
+    FragColor = (texture(_BASE_MAP, out_uv) + vec4(t,t,t,t)) * out_vertColor * vec4(result, 1.0);
 }

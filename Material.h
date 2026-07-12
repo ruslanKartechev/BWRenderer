@@ -2,23 +2,36 @@
 #include <string>
 #include <vector>
 #include "Handle.h"
-#include <cglm/cglm.h>
-
 #include "MyTypes.h"
 
-struct Material {
+struct vector4 {
+    float x;
+    float y;
+    float z;
+    float w;
+};
+
+
+class Material {
+public:
     // definition
     std::string shaderName;
     std::vector<std::pair<std::string, float>> floatsDefinitions;
-    std::vector<std::pair<std::string, vec4>> vectorsDefinitions;
+    std::vector<std::pair<std::string, vector4>> vectorsDefinitions;
     std::vector<std::pair<std::string, std::string>> texturesDefinitions;
 
     // runtime
     Handle shaderHandle;
     std::vector<std::pair<u32, float>> floats;
-    std::vector<std::pair<u32, vec4>> vectors;
-    std::vector<std::pair<u32, std::string>> textures;
+    std::vector<std::pair<u32, vector4>> vectors;
+    /// Pairs of <GL hUniform Location, handle to the texture rresource
+    std::vector<std::pair<u32, Handle>> textures;
     bool writeDepth = true;
     bool isTransparent = false;
     bool didInit = false;
+
+    void SetFloatDefinition(const std::string& name, float value);
+    void SetVectorDefinition(const std::string& name, vector4 value);
+    void SetTextureDefinition(const std::string& name, std::string value);
+
 };

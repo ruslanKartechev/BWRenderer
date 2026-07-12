@@ -1,9 +1,13 @@
-#ifndef RENDERGL_HANDLE_H
-#define RENDERGL_HANDLE_H
+#pragma once
+#include "MyTypes.h"
 
 struct Handle {
-    u32 index = 0;
-    u32 generation = 0;
+    u32 index;
+    u32 generation;
+
+    bool IsEmpty() const{
+        return index == 0 && generation == 0;
+    }
 
     void Copy(const Handle& other) {
         index = other.index;
@@ -18,5 +22,3 @@ struct Handle {
         return !(*this == other);
     }
 };
-
-#endif //RENDERGL_HANDLE_H

@@ -21,6 +21,10 @@ public:
     std::vector<T> slots = {};
     std::vector<HandleSlot> handles = {};
 
+    i32 GetGenerationFor(i32 index) {
+        return handles[index].generation;
+    }
+
     SlotMap(size_t reservedMemorySlots = 256) {
         slots.reserve(reservedMemorySlots);
         handles.reserve(reservedMemorySlots);

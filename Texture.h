@@ -1,23 +1,18 @@
-//
-// Created by user on 5/30/2026.
-//
-
-#ifndef RENDERGL_TEXTURE_H
-#define RENDERGL_TEXTURE_H
-
+#pragma once
+#include "MyTypes.h"
+#include <string>
 
 class Texture {
 public:
-    int width;
-    int height;
-    int channels;
-    unsigned int glHandle;
+    i32 width;
+    i32 height;
+    i32 channels;
+    i32 pixelFormat;
+    u32 glHandle;
+    bool isLoaded;
+    const char* name;
     unsigned char* pixels;
-    int pixelFormat;
 
-    bool LoadTexture(const char* path);
+
     bool UploadToGL(bool freeResource = true);
 };
-
-
-#endif //RENDERGL_TEXTURE_H

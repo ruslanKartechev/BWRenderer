@@ -17,13 +17,6 @@ typedef struct Mesh{
 
 } Mesh;
 
-struct MeshRenderData {
-    Handle hMesh;
-    Handle hShader;
-    GLuint vao;
-    GLuint vbo;
-    GLuint ebo;
-};
 
 void Mesh_Print(Mesh& mesh);
 

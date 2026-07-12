@@ -19,21 +19,28 @@ Shader::Shader() {}
 //     other.m_ShaderID = 0; // Steal the ID, prevent old object from deleting it
 // }
 
+void Shader::GetVertexFragmentPath(const char* shaderName, std::string& out_vertexPath, std::string& out_fragmentPath) {
+    std::string path = Application::ResourcesPath  + "/Shaders/" + std::string(shaderName);
+    out_vertexPath = (path + ".vert");
+    out_fragmentPath = (path + ".frag");
+}
+
 Shader::Shader(const char* shaderName) : m_ShaderID(0), m_isCompiled(false), m_hasErrors(false)
 {
+    m_name = shaderName;
     SetName(shaderName);
 }
 
 void Shader::SetName(const char* shaderName) {
-    std::string strName = Application::ResourcesPath  + "/Shaders/" + std::string(shaderName);
-    m_vertexPath = (strName + ".vert");
-    m_fragmentPath = (strName + ".frag");
+    m_name = shaderName;
+    GetVertexFragmentPath(shaderName, m_vertexPath,  m_fragmentPath);
 }
 
 
 Shader::Shader(const char* vertPath, const char* fragPath)
         : m_ShaderID(0),  m_isCompiled(false), m_hasErrors(false)
 {
+    m_name = vertPath;
     m_vertexPath = (Application::ResourcesPath + "/Shaders/" + std::string(vertPath));
     m_fragmentPath = (Application::ResourcesPath + "/Shaders/" + std::string(fragPath));
 }
@@ -57,8 +64,8 @@ unsigned int Shader::GetShaderId() const {
     return m_ShaderID;
 }
 
-std::string Shader::GetName() const {
-    return m_vertexPath;
+std::string& Shader::GetName() {
+    return m_name;
 }
 
 
@@ -149,19 +156,19 @@ bool Shader::CheckCompileErrors(GLuint shaderID, int type) {
 
 
 // region Basic Properties Set
-void Shader::setBool(const std::string& name, bool value) const {
+void Shader::SetBool(const std::string& name, bool value) const {
     int loc = glGetUniformLocation(m_ShaderID, name.c_str());
     if (loc >= 0)
         glUniform1i(loc, (int)value);
 }
 
-void Shader::setInt(const std::string& name, int value) const {
+void Shader::SetInt(const std::string& name, int value) const {
     int loc = glGetUniformLocation(m_ShaderID, name.c_str());
     if (loc >= 0)
         glUniform1i(loc, value);
 }
 
-void Shader::setFloat(const std::string& name, float value) const {
+void Shader::SetFloat(const std::string& name, float value) const {
     int loc = glGetUniformLocation(m_ShaderID, name.c_str());
     if (loc >= 0)
         glUniform1f(loc, value);
@@ -169,23 +176,33 @@ void Shader::setFloat(const std::string& name, float value) const {
 //endregion
 
 
-// region cglm
-void Shader::setVec3(const std::string& name, const vec3 v) const {
+// region CGLM
+void Shader::SetVec3(const std::string& name, const vec3 v) const {
     int loc = glGetUniformLocation(m_ShaderID, name.c_str());
     if (loc >= 0) {
         glUniform3fv(loc, 1, (const float*)v);
     }
 }
-void Shader::setVec4(const std::string& name, const vec4 v) const {
+void Shader::SetVec4(const std::string& name, const vec4 v) const {
     int loc = glGetUniformLocation(m_ShaderID, name.c_str());
     if (loc >= 0) {
         glUniform4fv(loc, 1, (const float*)v);
     }
 }
-void Shader::setMat4(const std::string& name, const mat4 m) const {
+void Shader::SetMat4(const std::string& name, const mat4 m) const {
     int loc = glGetUniformLocation(m_ShaderID, name.c_str());
     if (loc >= 0)
         glUniformMatrix4fv(loc, 1, GL_FALSE, (const float*)m);
 }
+
+
+std::string& Shader::GetVertexPath() {
+    return m_vertexPath;
+}
+
+std::string& Shader::GetFragmentPath() {
+    return m_fragmentPath;
+}
+
 // endregion
 

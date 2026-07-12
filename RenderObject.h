@@ -1,11 +1,11 @@
 #pragma once
-#include "Mesh.h"
+#include "RenderSubMesh.h"
 #include "SlotsMap.h"
 #include <string>
 
 class RenderObject {
 public:
-    std::vector<MeshRenderData> meshData;
+    std::vector<RenderSubMesh> meshData;
     Handle hTransform;
     std::string name;
     bool shadersAssigned;

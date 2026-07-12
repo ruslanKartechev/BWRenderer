@@ -9,6 +9,13 @@
 #include "Application.h"
 #include "AssetManager.h"
 
+#include "RenderSubMesh.h"
+#include "stb_image.h"
+
+
+static const int MAX_STRCMP_ITERATIONS = 128;
+
+
 std::string AssetManager::GetGlobalPath(const char* resourcesPath)
 {
     std::filesystem::path fullPath = (Application::ResourcesPath);
@@ -144,7 +151,7 @@ Handle ParseIntoRenderObject(aiNode* node, const aiScene& aiScene, GameScene& ga
         if (renderObject.meshData.size() < renderMeshCount) {
             renderObject.meshData.resize(renderMeshCount);
         }
-        MeshRenderData& renderData = renderObject.meshData[renderMeshCount-1];
+        RenderSubMesh& renderData = renderObject.meshData[renderMeshCount-1];
         renderData.hMesh = hMesh;
     }
     return objHandle;
@@ -165,8 +172,7 @@ void ParseSceneRecursive(aiNode* node, const aiScene& aiScene, GameScene& gameSc
 }
 
 
-Handle AssetManager::LoadModel(const char* path, GameScene& gameScene)
-{
+Handle AssetManager::LoadModel(const char* path, GameScene& gameScene, int num){
     auto filePath = GetGlobalPathModel(path);
     Assimp::Importer importer;
     const aiScene* scene = importer.ReadFile(filePath, aiProcess_Triangulate | aiProcess_FlipUVs | aiProcess_GenSmoothNormals);
@@ -182,3 +188,177 @@ Handle AssetManager::LoadModel(const char* path, GameScene& gameScene)
     ParseSceneRecursive(scene->mRootNode, *scene, gameScene, rootHandle);
     return rootHandle;
 }
+
+
+
+Shader& AssetManager::GetDefault3D() {
+    // printf("[SR]  Shader RETURNING %d, %d\n", default3D.index, default3D.generation);
+    return shaders.GetItemRef(shaderDefault3D);
+}
+
+Shader& AssetManager::GetDefault2D() {
+    // printf("[SR] Shader RETURNING %d, %d\n", default2D.index, default2D.generation);
+    return shaders.GetItemRef(shaderDefault2D);
+}
+
+Shader& AssetManager::GetSkyboxDefault() {
+    return shaders.GetItemRef(shaderDefaultSkybox);
+}
+
+Shader& AssetManager::GetFallback() {
+    return shaders.GetItemRef(shaderFallback);
+}
+
+Shader& AssetManager::GetShader(Handle h) {
+    // printf("[SR] Getting item ref %d, %d \n", h.index, h.generation);
+    return shaders.GetItemRef(h);
+}
+
+
+
+
+
+// region Textures
+
+Texture& AssetManager::GetNewTextureObject(Handle& outHandle) {
+    auto& texture = textures.GetNewObjectAndHandle(outHandle);
+    texture.isLoaded = false;
+    return texture;
+}
+
+
+bool AssetManager::LoadTextureAtPath(Texture &texture, const char *relativePath, bool uploadToGPU) {
+    int sizeX = 0;
+    int sizeY = 0;
+    int nrChannels = 0;
+    texture.name = relativePath;
+    texture.isLoaded = false;
+    texture.name = relativePath;
+
+    std::string gloalPath = GetGlobalPathTextures(relativePath);
+    if (texture.pixels != nullptr) {
+        free(texture.pixels);
+    }
+    texture.pixels = nullptr;
+    texture.pixels = stbi_load(gloalPath.c_str(), &sizeX, &sizeY, &nrChannels, 4);
+    if (texture.pixels == nullptr) {
+
+        std::cerr << "[TextureLoad] Failed to real pixels! " << gloalPath  << std::endl;
+        return false;
+    }
+
+    texture.width = sizeX;
+    texture.height = sizeY;
+    texture.channels = nrChannels;
+    texture.isLoaded = true;
+    if (uploadToGPU) {
+        texture.UploadToGL(true);
+    }
+
+    std::cout << "---------- 1  " << texture.name << " GL HANDEL AfTER UPLOAD  " << texture.glHandle << std::endl;
+
+    return true;
+}
+
+bool AssetManager::LoadTextureCubemap(Texture& texture, std::vector<std::string>& facePaths) {
+    bool didLoad = true;
+
+    if (facePaths.size() != 6) {
+        std::cout << "Possible error. Cubemap sides count is not 6" << std::endl;
+        texture.isLoaded = false;
+        return false;
+    }
+
+    GLuint textureID;
+    glGenTextures(1, &textureID);
+    glBindTexture(GL_TEXTURE_CUBE_MAP, textureID);
+
+    texture.glHandle = textureID;
+    texture.isLoaded = true;
+
+    for (size_t i = 0; i < facePaths.size(); i++) {
+        i32 width, height, nrChannels;
+        std::string loadPath = GetGlobalPathTextures(facePaths[i].c_str());
+        std::cout << "Loading from: " << loadPath << std::endl;
+
+        unsigned char* data = stbi_load(loadPath.c_str(), &width, &height, &nrChannels, 0);
+        if (data) {
+            // OpenGL enum go like: (Right, Left, Top, Bottom, Front, Back)
+            GLenum format = (nrChannels == 4) ? GL_RGBA : GL_RGB;
+            glTexImage2D(GL_TEXTURE_CUBE_MAP_POSITIVE_X + i, 0, format, width, height, 0, GL_RGB, GL_UNSIGNED_BYTE, data);
+            stbi_image_free(data);
+        }
+        else {
+            std::cout << "Failed to load cubemap texture at: " << facePaths[i] << std::endl;
+            stbi_image_free(data);
+            didLoad = false;
+        }
+    }
+    glTexParameteri(GL_TEXTURE_CUBE_MAP, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
+    glTexParameteri(GL_TEXTURE_CUBE_MAP, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+    glTexParameteri(GL_TEXTURE_CUBE_MAP, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
+    glTexParameteri(GL_TEXTURE_CUBE_MAP, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
+    glTexParameteri(GL_TEXTURE_CUBE_MAP, GL_TEXTURE_WRAP_R, GL_CLAMP_TO_EDGE);
+    return didLoad;
+}
+
+
+
+void AssetManager::CreateDefaultWhiteTexture() {
+
+    constexpr i32 dim = 4 ;
+    constexpr i32 size = dim * dim;
+    u8 whitePixels[4 * size];
+    std::memset(whitePixels, 255, sizeof(whitePixels)); // Is this correct
+
+    Texture& texture = GetNewTextureObject(defaultWhiteTexture);
+    texture.pixels = whitePixels;
+    texture.name = "white";
+    texture.width = dim;
+    texture.height = dim;
+
+    texture.isLoaded = true;
+    texture.UploadToGL(false);
+}
+//endregion
+
+
+
+// region Find By Name
+Handle AssetManager::FindTextureByName(const char* name) {
+    auto& vec = textures.GetVector();
+    i32 idx = 0;
+    for (auto& obj : vec) {
+
+        if (obj.name == nullptr) {
+            continue;
+        }
+
+        std::cout << "[Assets] texture name: " <<  obj.name << std::endl;
+        if (std::strncmp(obj.name, name, MAX_STRCMP_ITERATIONS) == 0) {
+
+            return Handle(idx, textures.GetGenerationFor(idx));
+        }
+        idx++;
+    }
+    std::cout << "[Assets] Failed to FIND matching texture!" << std::endl;
+    return Handle(0,0);
+}
+
+
+Handle AssetManager::FindShaderByName(const char* name) {
+    auto& vec = shaders.GetVector();
+    i32 idx = 0;
+    // std::cout << "shaders count : " << vec.size() << std::endl;
+    for (auto& obj : vec) {
+        // std::cout << "[search] " << obj.GetName() << " " << idx << std::endl;
+        if (std::strncmp(obj.GetName().c_str(), name, MAX_STRCMP_ITERATIONS) == 0) {
+            return Handle(idx, shaders.GetGenerationFor(idx));
+        }
+        idx++;
+    }
+    std::cerr << "[Assets] Failed to FIND matching shader!" << std::endl;
+    return Handle(0,0);
+}
+
+// endregion

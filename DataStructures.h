@@ -18,18 +18,3 @@ struct Light{
 };
 
 
-
-struct Camera{
-    float fieldOfView;
-    float aspectRatio;
-    float nearPlane;
-    float farPlane;
-
-    mat4 viewMatrix;
-    mat4 projectionMatrix;
-    Handle transformHandle;
-};
-
-
-
-

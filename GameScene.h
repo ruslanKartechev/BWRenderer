@@ -3,9 +3,13 @@
 #include "DataStructures.h"
 #include "Mesh.h"
 #include "RenderObject.h"
+#include "Skybox.h"
+#include "Camera.h"
+
 
 class GameScene {
-public:
+
+    public:
     std::vector<Handle> existingObjects = {};
 
     SlotMap<Mesh> meshes = SlotMap<Mesh>();
@@ -14,6 +18,7 @@ public:
 
     Camera camera = {};
     Light mainLight = {};
+    Skybox skybox = {};
 
     vec4 backgroundColor = {0.8f, 0.5f, 0.76f, 1.0f};
     vec3 ambientLightColor = {1.0f, 0.9f, 0.9f};
@@ -21,14 +26,16 @@ public:
 
     Transform& GetTransformForObject(Handle& renderObjectHandle);
 
+    Handle CreateObjectWithCustomMesh(const char* path, vec3 position, vec3 rotation, vec3 scale, Handle materialHandle);
+
     /**
      * Creates a new RenderObject and assigns a renderSubMesh with a given mesh and shader
      * @param name Name of the object
-     * @param handleMesh Handle for existing mesh
+     * @param hMesh Handle for existing mesh
      * @param shaderHandle Handle to the shader used
      * @return handle to the new RenderObject
      */
-    Handle NewObject_MeshShader(const char* name, Handle handleMesh, vec3 position, vec3 rotation, vec3 scale, Handle shaderHandle);
+    Handle NewObject_SingleSubMesh(const char* name, Handle hMesh, vec3 position, vec3 rotation, vec3 scale, Handle shaderHandle);
 
     Handle NewObject_CubeNamed(const char* name, vec3 position, vec3 rotation, vec3 scale, Handle shaderHandle);
     Handle NewObject_Cube(vec3 position, vec3 rotation, vec3 scale, Handle shaderHandle);

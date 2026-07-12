@@ -41,8 +41,6 @@ add_executable( RenderGL  WIN32  main.cpp
         Transform.cpp
         Transform.h
         SlotsMap.h
-        ShaderRegistry.h
-        ShaderRegistry.cpp
         Mesh.h
         Mesh.cpp
         DataStructures.h
@@ -55,6 +53,17 @@ add_executable( RenderGL  WIN32  main.cpp
         GraphicsGL.h
         Material.cpp
         Material.h
+        RenderSubMesh.h
+        Uniforms.h
+        Skybox.h
+        Camera.cpp
+        Camera.h
+        ShaderWatcher.h
+        ShaderWatcher.cpp
+        SceneDefinition.cpp
+        SceneDefinition.h
+        Engine.cpp
+        Engine.h
 )
 
 
