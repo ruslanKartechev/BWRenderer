@@ -15,6 +15,7 @@ public:
     Handle shaderDefaultSkybox;
     Handle shaderFallback;
     Handle shaderLightDebug;
+    Handle shaderScreenRenderTexture;
 
     // Default Materials
     Handle materialDebug;
@@ -32,6 +33,7 @@ public:
 
 
     static std::string GetGlobalPath(const char* resourcesPath);
+    static std::string GetProjectSettingsPath();
 
     static std::string GetGlobalPathTextures(const char* resourcesPath);
 
@@ -41,7 +43,9 @@ public:
 
     static bool ReadStringContent(std::string& content, const char* path);
 
-    static Handle LoadModel(const char* path, GameScene& gameScene, int num);
+    bool LoadTexturesForMaterials(Material& material);
+
+    static int LoadModelsFromFbx(const char* path, GameScene& gameScene, std::vector<Handle>& objectsHandles);
 
     /**
      * @param texture reference to a pre-allocated texture Object
@@ -62,6 +66,7 @@ public:
     Shader& GetDefault2D();
     Shader& GetSkyboxDefault();
     Shader& GetFallback();
+    Shader& GetScreenRenderTextureShader();
     Shader& GetShader(Handle h);
 
     Handle FindTextureByName(const char* name);

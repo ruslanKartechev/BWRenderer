@@ -42,27 +42,16 @@ Handle GameScene::NewObject_SingleSubMesh(const char *name,
     return handleRenderObj;
 }
 
-Handle GameScene::CreateObjectWithCustomMesh(const char* path, vec3 position, vec3 rotation, vec3 scale, Handle materialHandle) {
-    Handle objHandle = AssetManager::LoadModel(path, *this, 1);
+void GameScene::AddCustomObject(const Handle& objHandle, vec3 position, vec3 rotation, vec3 scale) {
 
-    RenderObject& obj = renderObjects.GetItemRef(objHandle);
+    auto& obj = renderObjects.GetItemRef(objHandle);
     Transform& tr = transforms.GetItemRef(obj.hTransform);
-
-    obj.shadersAssigned = true;
-    for (auto& subMesh : obj.meshData) {
-        subMesh.hMaterial = materialHandle;
-    }
-    // obj.AppendNewMeshAndShader(handleMesh, shaderHandle);
     GL_AllocateGraphicsForObject(obj, *this);
 
     Transform_SetLocalScaleVec(tr, scale);
     Transform_SetLocalPositionVec(tr, position);
     Transform_SetRotationEulerVec(tr, rotation);
-    obj.SetName(path);
-
-    // Mesh& mesh = scene.meshes.GetItemRef(ro.meshData[0].hMesh);
-    // Mesh_Print(mesh);
-    return objHandle;
+    existingObjects.push_back(objHandle);
 }
 
 

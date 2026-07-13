@@ -1,13 +1,14 @@
 #include "Shader.h"
 #include <iostream>
-#include "Application.h"
 #include "AssetManager.h"
-
+#include "Engine.h"
+#include "ProjectDefines.h"
 static constexpr int TYPE_VERTEX = 0;
 static constexpr int TYPE_FRAGMENT = 1;
 static constexpr int TYPE_PROGRAM = 2;
 
-Shader::Shader() {}
+Shader::Shader() : m_isCompiled(false), m_hasErrors(false), m_ShaderID(0) {
+}
 
 // Shader::Shader(Shader&& other) noexcept
 //     : m_ShaderID(other.m_ShaderID),
@@ -20,7 +21,7 @@ Shader::Shader() {}
 // }
 
 void Shader::GetVertexFragmentPath(const char* shaderName, std::string& out_vertexPath, std::string& out_fragmentPath) {
-    std::string path = Application::ResourcesPath  + "/Shaders/" + std::string(shaderName);
+    std::string path = ProjectSettings::ResourcesPath  + "/Shaders/" + std::string(shaderName);
     out_vertexPath = (path + ".vert");
     out_fragmentPath = (path + ".frag");
 }
@@ -41,8 +42,8 @@ Shader::Shader(const char* vertPath, const char* fragPath)
         : m_ShaderID(0),  m_isCompiled(false), m_hasErrors(false)
 {
     m_name = vertPath;
-    m_vertexPath = (Application::ResourcesPath + "/Shaders/" + std::string(vertPath));
-    m_fragmentPath = (Application::ResourcesPath + "/Shaders/" + std::string(fragPath));
+    m_vertexPath = (ProjectSettings::ResourcesPath + "/Shaders/" + std::string(vertPath));
+    m_fragmentPath = (ProjectSettings::ResourcesPath + "/Shaders/" + std::string(fragPath));
 }
 
 Shader::~Shader() {
@@ -55,7 +56,6 @@ void Shader::Use() const {
     glUseProgram(m_ShaderID);
 }
 
-
 bool Shader::IsCompiled() const {
     return m_isCompiled;
 }
@@ -64,25 +64,47 @@ unsigned int Shader::GetShaderId() const {
     return m_ShaderID;
 }
 
-std::string& Shader::GetName() {
+std::string& Shader::GetName(){
     return m_name;
 }
 
 
-int Shader::LoadAndCompile() {
-    // Update cached paths
-    // Clean up existing program if re-compiling with this instance
-    if (m_ShaderID != 0) {
-        glDeleteProgram(m_ShaderID);
-        m_ShaderID = 0;
+i32 Shader::Recompile() {
+    u32 newShaderId = 0;
+    u32 code = ReadAndCompile(newShaderId, m_vertexPath, m_fragmentPath);
+
+    if (code == 0 ) {
+        if (newShaderId != 0) {
+
+#ifdef LOG_SHADER_RECOMPILATION
+            std::cout << std::endl << "Compile success! updated shaderID: " << newShaderId  << std::endl;
+            std::cout << "Previous ID " << m_ShaderID << " New Shader ID: " << newShaderId << std::endl << std::endl;
+#endif
+            if (m_ShaderID != newShaderId) {
+                glDeleteProgram(m_ShaderID);
+            }
+            m_ShaderID = newShaderId;
+        }
+        else {
+            std::cerr << "Compile success, but newShaderID is 0!" << std::endl;
+        }
     }
+    return code;
+}
+
+
+int Shader::LoadAndCompile() {
+    auto code = ReadAndCompile(m_ShaderID, m_vertexPath, m_fragmentPath);
+    return code;
+}
+
+
+i32 Shader::ReadAndCompile(u32& newId, const std::string& m_vertexPath, const std::string& m_fragmentPath) {
+
     std::string vertexCode;
     std::string fragmentCode;
     bool didReadVert = AssetManager::ReadStringContent(vertexCode, m_vertexPath.c_str());
     bool didReadFrag = AssetManager::ReadStringContent(fragmentCode, m_fragmentPath.c_str());
-
-    // printf("VERTEX CODE! \n%s\n", vertexCode.c_str());
-    // printf("Shader CODE! \n%s\n", fragmentCode.c_str());
 
     if (!didReadVert) {
         std::cerr << "Failed to load vertex shader! " << m_vertexPath.c_str() << std::endl;
@@ -92,7 +114,6 @@ int Shader::LoadAndCompile() {
         std::cerr << "Failed to load fragment shader! " << m_fragmentPath.c_str() << std::endl;
         return 2;
     }
-    // printf("--- step 2\n");
     const char* strVert = vertexCode.c_str();
     const char* strFrag = fragmentCode.c_str();
 
@@ -116,27 +137,24 @@ int Shader::LoadAndCompile() {
         return 4;
     }
 
-    // Link Shader Program
-    m_ShaderID = glCreateProgram();
-    glAttachShader(m_ShaderID, idVert);
-    glAttachShader(m_ShaderID, idFrag);
-    glLinkProgram(m_ShaderID);
+    newId = glCreateProgram();
+    glAttachShader(newId, idVert);
+    glAttachShader(newId, idFrag);
+    glLinkProgram(newId);
 
-    bool success = CheckCompileErrors(m_ShaderID, TYPE_PROGRAM);
+    bool success = CheckCompileErrors(newId, TYPE_PROGRAM);
     if (!success) {
-        m_isCompiled = false;
-        glDeleteProgram(m_ShaderID);
-        m_ShaderID = 0;
+        glDeleteProgram(newId);
+        newId = 0;
         return 10;
-        std::cerr << "Failed error CHECK FOR PROGRAM!" << std::endl;
-        return 150;
     }
     // Always detach and delete intermediate shader objects after linking
     glDeleteShader(idVert);
     glDeleteShader(idFrag);
-    m_isCompiled = true;
     return 0;
 }
+
+
 
 
 bool Shader::CheckCompileErrors(GLuint shaderID, int type) {
@@ -193,6 +211,15 @@ void Shader::SetMat4(const std::string& name, const mat4 m) const {
     int loc = glGetUniformLocation(m_ShaderID, name.c_str());
     if (loc >= 0)
         glUniformMatrix4fv(loc, 1, GL_FALSE, (const float*)m);
+}
+
+void Shader::SetAcceptsLighting(bool value) {
+    m_acceptsLighting = value;
+}
+
+
+bool Shader::GetAcceptsLighting() const {
+    return m_acceptsLighting;
 }
 
 

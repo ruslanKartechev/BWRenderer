@@ -1,0 +1,5 @@
+#pragma once
+
+#define LOG_SHADER_WATCHER__
+#define LOG_DEFAULT_SHADER_COMP__
+#define LOG_SHADER_RECOMPILATION__

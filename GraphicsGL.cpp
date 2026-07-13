@@ -4,13 +4,122 @@
 #include "Material.h"
 #include "Uniforms.h"
 #include "Camera.h"
+#include "Engine.h"
 
+class Engine;
 static int DidLogTransforms;
 
-void GL_UpdateBackground(GameScene scene) {
-    vec4& backgroundColor = scene.backgroundColor;
-    glClearColor(backgroundColor[0], backgroundColor[1], backgroundColor[2], backgroundColor[3]);
-    glClear(GL_DEPTH_BUFFER_BIT | GL_COLOR_BUFFER_BIT);
+struct RenderTarget {
+    GLuint fbo;
+    GLuint colorTexture;
+    GLuint rbo;
+    GLuint quadVAO;
+    GLuint quadVBO;
+};
+
+static RenderTarget renderTarget = {};
+
+// Forward-declaration
+void RenderScreenTexture(const RenderTarget& target, Shader& quadShader);
+
+void GL_ResizeRenderTarget(i32 width, i32 height) {
+    RenderTarget& target = renderTarget;
+    glBindTexture(GL_TEXTURE_2D, target.colorTexture);
+    glTexImage2D(GL_TEXTURE_2D, 0, GL_RGB, width, height, 0, GL_RGB, GL_UNSIGNED_BYTE, nullptr);
+
+    glBindRenderbuffer(GL_RENDERBUFFER, target.rbo);
+    glRenderbufferStorage(GL_RENDERBUFFER, GL_DEPTH24_STENCIL8, width, height);
+
+    glBindTexture(GL_TEXTURE_2D, 0);
+    glBindRenderbuffer(GL_RENDERBUFFER, target.rbo);
+
+    glViewport(0, 0, width, height);
+}
+
+void GL_InitDefaultMaterials(AssetManager& assets) {
+    // Default 3d
+    {
+        auto& material = assets.materials.GetNewObjectAndHandle(assets.materialDefault3d);
+        material.shaderName = "Default3D";
+        material.SetVectorDefinition(ID_COLOR_TINT, {0.95f, 0.95f, 0.95f, 1.0});
+        material.SetFloatDefinition(ID_SPECULAR_POWER, 16);
+        material.SetTextureDefinition(ID_BASE_MAP, "");
+        material.SetTextureDefinition(ID_NORMAL_MAP, "");
+        material.SetVectorDefinition(ID_BASE_MAP_TO, {1.0f, 1.0f, 0.0f, 0.0f});
+        GL_InitMaterialProperties(material, assets);
+    }
+    // Default 2d
+    {
+        auto& material = assets.materials.GetNewObjectAndHandle(assets.materialDefault2d);
+        material.shaderName = "Default2D";
+        material.SetVectorDefinition(ID_COLOR_TINT, {0.9f, 0.9f, 0.9f, 1.0});
+        GL_InitMaterialProperties(material, assets);
+    }
+    // Debug Shader
+    {
+        auto& material = assets.materials.GetNewObjectAndHandle(assets.materialDebug);
+        material.shaderName = "DebugShader";
+        GL_InitMaterialProperties(material, assets);
+    }
+}
+
+
+void GL_BuildScreenRenderQuad(RenderTarget& target, i32 width, i32 height) {
+    float quadVertices[] = {
+        // positions   // uvs
+        -1.0f,  1.0f,  0.0f, 1.0f,
+        -1.0f, -1.0f,  0.0f, 0.0f,
+         1.0f, -1.0f,  1.0f, 0.0f,
+        -1.0f,  1.0f,  0.0f, 1.0f,
+         1.0f, -1.0f,  1.0f, 0.0f,
+         1.0f,  1.0f,  1.0f, 1.0f
+    };
+
+    glGenVertexArrays(1, &target.quadVAO);
+    glGenBuffers(1, &target.quadVBO);
+
+    glBindVertexArray(target.quadVAO);
+
+    glBindBuffer(GL_ARRAY_BUFFER, target.quadVBO);
+    glBufferData(GL_ARRAY_BUFFER, sizeof(quadVertices), &quadVertices, GL_STATIC_DRAW);
+    // Vertices
+    glEnableVertexAttribArray(0);
+    glVertexAttribPointer(0, 2, GL_FLOAT, GL_FALSE, 4 * sizeof(float), (const void*)(0 * sizeof(float) ));
+    // UVs
+    glEnableVertexAttribArray(1);
+    glVertexAttribPointer(1, 2, GL_FLOAT, GL_FALSE, 4 * sizeof(float), (const void*)(2 * sizeof(float) ));
+
+    // Create texture for the FB
+    glGenTextures(1, &target.colorTexture);
+    glBindTexture(GL_TEXTURE_2D, target.colorTexture);
+    glTexImage2D(GL_TEXTURE_2D, 0, GL_RGB, width, height, 0, GL_RGB, GL_UNSIGNED_BYTE, nullptr);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+
+    // Create framebuffer
+    glGenFramebuffers(1, &target.fbo);
+    glBindFramebuffer(GL_FRAMEBUFFER, target.fbo);
+    glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, target.colorTexture, 0);
+    // Create render-buffer for depth and stencil
+    glGenRenderbuffers(1, &target.rbo);
+    glBindRenderbuffer(GL_RENDERBUFFER, target.rbo);
+    glRenderbufferStorage(GL_RENDERBUFFER, GL_DEPTH24_STENCIL8, width, height);
+    glFramebufferRenderbuffer(GL_FRAMEBUFFER, GL_DEPTH_STENCIL_ATTACHMENT, GL_RENDERBUFFER, target.rbo);
+    if (glCheckFramebufferStatus(GL_FRAMEBUFFER) != GL_FRAMEBUFFER_COMPLETE) {
+        std::cerr << "ERROR::FRAMEBUFFER:: Framebuffer is not complete!\n";
+    }
+    // unbind into default state
+    glBindFramebuffer(GL_FRAMEBUFFER, 0);
+}
+
+
+void GL_InitGraphics(i32 width, i32 height) {
+    std::cout << "[Graphics] Init " << width << "height: " << height << std::endl;
+    GL_BuildScreenRenderQuad(renderTarget, width, height);
+}
+
+
+void GL_UpdateBackground(GameScene& scene) {
 }
 
 void GL_InitMaterialProperties(Material& material, AssetManager& assets) {
@@ -49,10 +158,7 @@ void GL_InitMaterialProperties(Material& material, AssetManager& assets) {
 
         Handle textureHandle = {};
         if (assetName.empty()){
-            printf("Default white  handle: %d, %d \n", assets.defaultWhiteTexture.index, assets.defaultWhiteTexture.generation);
             textureHandle.Copy(assets.defaultWhiteTexture);
-            printf("HANDLE AFTER COPY: %d, %d \n", textureHandle.index, textureHandle.generation);
-
         }
         else {
             textureHandle = assets.FindTextureByName(assetName.c_str());
@@ -106,11 +212,11 @@ void GL_AllocateGraphicsSkybox(RenderSubMesh& obj) {
 
 void GL_AllocateGraphicsForObject(RenderObject& obj, GameScene& scene)
 {
-    obj.meshData.reserve(1);
-    if (obj.meshData.size() < 1) {
-        obj.meshData.resize(1);
+    obj.subMeshses.reserve(1);
+    if (obj.subMeshses.size() < 1) {
+        obj.subMeshses.resize(1);
     }
-    for (auto& meshRenderData : obj.meshData) {
+    for (auto& meshRenderData : obj.subMeshses) {
 
         Mesh& mesh = scene.meshes.GetItemRef(meshRenderData.hMesh);
 
@@ -161,12 +267,44 @@ void GL_AllocateGraphicsForObject(RenderObject& obj, GameScene& scene)
 static int DBG_LVL = 0;
 static int MAX_DBG = 0;
 
-void GL_ForwardRenderOpaques(GameScene& scene, Camera& camera, AssetManager& assets) {
-    DBG_LVL++;
+static int logTimes = 0;
+static int MAX_LOG = 2;
+
+void BindRenderTarget(const RenderTarget& target) {
+    glBindFramebuffer(GL_FRAMEBUFFER, target.fbo);
+
     glEnable(GL_DEPTH_TEST);
     glDepthFunc(GL_LEQUAL);
+
     glEnable(GL_CULL_FACE);
     glCullFace(GL_FRONT);
+}
+
+
+
+
+
+void GL_ForwardRenderOpaques(GameScene& scene, Camera& camera, AssetManager& assets, ProjectSettings& settings) {
+    DBG_LVL++;
+
+    vec4& backgroundColor = scene.backgroundColor;
+    glClearColor(backgroundColor[0], backgroundColor[1], backgroundColor[2], backgroundColor[3]);
+    glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
+
+    glEnable(GL_DEPTH_TEST);
+    glDepthFunc(GL_LEQUAL);
+    glDepthMask(GL_TRUE);
+
+    glEnable(GL_CULL_FACE);
+    glCullFace(GL_FRONT);
+    glDisable(GL_BLEND); // no blending here
+
+    if (settings.Gamma_Correction) {
+        glEnable(GL_FRAMEBUFFER_SRGB);
+    }
+    else {
+        glDisable(GL_FRAMEBUFFER_SRGB);
+    }
 
     mat4 viewProjMatrix;
     glm_mat4_mul(camera.projectionMatrix, camera.viewMatrix, viewProjMatrix);
@@ -179,15 +317,22 @@ void GL_ForwardRenderOpaques(GameScene& scene, Camera& camera, AssetManager& ass
     Transform_GetFrw(cameraTransform, cameraViewDir);
     Transform_GetFrw(globalLightTransform, mainLightDir);
 
-    {
-        Shader& def3D = assets.GetDefault3D();
-        glUseProgram(def3D.GetShaderId());
-        def3D.SetVec3(ID_UNIFORM_VIEW_POS, cameraTransform.position);
-        def3D.SetVec3(ID_UNIFORM_AMBIENT_LIGHT_COLOR, scene.ambientLightColor);
-        def3D.SetFloat(ID_UNIFORM_AMBIENT_LIGHT_INTENSITY, scene.ambientIntensity);
-        def3D.SetVec3("DIRECTIONAL_LIGHT.direction", mainLightDir);
-        def3D.SetVec3("DIRECTIONAL_LIGHT.color", scene.mainLight.color);
-        def3D.SetFloat("DIRECTIONAL_LIGHT.intensity", scene.mainLight.intensity);
+
+    auto& shaders = assets.shaders.GetVector();
+    for (auto& shader : shaders) {
+        if (!shader.GetAcceptsLighting()) {
+            continue;
+        }
+
+        auto shaderGL = shader.GetShaderId();
+        glUseProgram(shaderGL);
+
+        shader.SetVec3(ID_UNIFORM_VIEW_POS, cameraTransform.position);
+        shader.SetVec3(ID_UNIFORM_AMBIENT_LIGHT_COLOR, scene.ambientLightColor);
+        shader.SetFloat(ID_UNIFORM_AMBIENT_LIGHT_INTENSITY, scene.ambientIntensity);
+        shader.SetVec3("DIRECTIONAL_LIGHT.direction", mainLightDir);
+        shader.SetVec3("DIRECTIONAL_LIGHT.color", scene.mainLight.color);
+        shader.SetFloat("DIRECTIONAL_LIGHT.intensity", scene.mainLight.intensity);
     }
 
     for (auto& objHandle : scene.existingObjects) {
@@ -198,13 +343,12 @@ void GL_ForwardRenderOpaques(GameScene& scene, Camera& camera, AssetManager& ass
         Transform& transform = scene.transforms.GetItemRef(obj.hTransform);
 
         if (DidLogTransforms < 2) {
-
         }
 
         mat4 mvp;
         glm_mat4_mul(viewProjMatrix, transform.modelMatrix, mvp);
 
-        for (auto& renderData : obj.meshData) {
+        for (auto& renderData : obj.subMeshses) {
 
             Material& material = assets.materials.GetItemRef(renderData.hMaterial);
             Shader& shader = assets.GetShader(material.shaderHandle);
@@ -225,10 +369,6 @@ void GL_ForwardRenderOpaques(GameScene& scene, Camera& camera, AssetManager& ass
             glUniformMatrix4fv(model_Location, 1, GL_FALSE, (float*)transform.modelMatrix);
             glUniformMatrix4fv(view_Location, 1, GL_FALSE, (float*)camera.viewMatrix);
             glUniformMatrix4fv(proj_Location, 1, GL_FALSE, (float*)camera.projectionMatrix);
-
-            // std::cout << "Floats: " << material.floats.size() << std::endl;
-            // std::cout << "Vectors: " << material.vectors.size() << std::endl;
-            // std::cout << "Textures: " << material.textures.size() << std::endl;
 
             for (auto floatPair : material.floats) {
                 glUniform1f(floatPair.first, floatPair.second);
@@ -254,12 +394,11 @@ void GL_ForwardRenderOpaques(GameScene& scene, Camera& camera, AssetManager& ass
                 glBindTexture(GL_TEXTURE_2D, texture.glHandle);
                 glUniform1i(texParamName, textureNumber);
                 textureNumber++;
-                if (DBG_LVL < MAX_DBG) {
-                    printf("Texture Handle %d, %d\n", texturePair.second.index, texturePair.second.generation);
-                    printf("Texture GL handle %d\n", texture.glHandle);
-                    printf("Texture Name: %s\n" ,texture.name);
-
-                }
+              //  if (DBG_LVL < MAX_DBG) {
+              //      printf("Texture Handle %d, %d\n", texturePair.second.index, texturePair.second.generation);
+              //      printf("Texture GL handle %d\n", texture.glHandle);
+              //      printf("Texture Name: %s\n" ,texture.name);
+              //  }
             }
 
             glBindVertexArray(renderData.vao);
@@ -276,10 +415,10 @@ void GL_ForwardRenderOpaques(GameScene& scene, Camera& camera, AssetManager& ass
     glUseProgram(0);
 }
 
+void ClearBackgroundNoSkyBox() {
 
+}
 
-static int logTimes = 0;
-static int MAX_LOG = 2;
 
 void GL_RenderSkybox(GameScene& scene, AssetManager& assets) {
     logTimes++;
@@ -293,7 +432,6 @@ void GL_RenderSkybox(GameScene& scene, AssetManager& assets) {
 
         std::cout << std::endl << "GL_RenderSkybox " << "Shader handle (" << material.shaderHandle.index  << ")" << std::endl;
     }
-
 
     mat4 viewNoTranslation;
     glm_mat4_copy(camera.viewMatrix, viewNoTranslation);
@@ -319,7 +457,6 @@ void GL_RenderSkybox(GameScene& scene, AssetManager& assets) {
             glActiveTexture(GL_TEXTURE0);
             glBindTexture(GL_TEXTURE_CUBE_MAP, texturePair.first);
             if (logTimes < MAX_LOG) {
-                std::cout << "Set GLhandle for cubeMap: " << texturePair.first << std::endl;
             }
 
         }
@@ -329,14 +466,22 @@ void GL_RenderSkybox(GameScene& scene, AssetManager& assets) {
     }
 
     auto loc = glGetUniformLocation(shaderId, ID_SKYBOX_CUBEMAP);
-    if (logTimes < MAX_LOG) {
-        std::cout << " LOCATION " << loc << std::endl;
-    }
-
     glUniform1i(loc, 0);
 
     glUniformMatrix4fv(glGetUniformLocation(shaderId, ID_UNIFORM_VIEW), 1, GL_FALSE, (float*)viewNoTranslation);
     glUniformMatrix4fv(glGetUniformLocation(shaderId, ID_UNIFORM_PROJECTION), 1, GL_FALSE, (float*)camera.projectionMatrix);
+
+    for (auto floatPair : material.floats) {
+        glUniform1f(floatPair.first, floatPair.second);
+    }
+    for (auto vecPair : material.vectors) {
+        vec4 vec;
+        vec[0] = vecPair.second.x;
+        vec[1] = vecPair.second.y;
+        vec[2] = vecPair.second.z;
+        vec[3] = vecPair.second.w;
+        glUniform4fv(vecPair.first, 1, (const float*)vec);
+    }
 
     glBindVertexArray(skybox.renderData.vao);
     glDrawArrays(GL_TRIANGLES, 0, 36);
@@ -346,27 +491,67 @@ void GL_RenderSkybox(GameScene& scene, AssetManager& assets) {
 }
 
 
-void GL_InitDefaultMaterials(AssetManager& assets) {
-    // Default 3d
-    {
-        auto& material = assets.materials.GetNewObjectAndHandle(assets.materialDefault3d);
-        material.shaderName = "Default3D";
-        material.SetVectorDefinition(ID_COLOR_TINT, {0.95f, 0.95f, 0.95f, 1.0});
-        material.SetFloatDefinition(ID_SPECULAR_POWER, 45);
-        material.SetTextureDefinition(ID_BASE_MAP, "");
-        GL_InitMaterialProperties(material, assets);
+void GL_ForwardRenderTransparent(GameScene& scene, Camera& camera, AssetManager& assets) {
+
+    glEnable(GL_BLEND);
+    glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
+    glDepthMask(GL_FALSE);
+
+
+}
+
+
+
+void RenderScreenTexture(const RenderTarget& target, Shader& quadShader) {
+    glBindFramebuffer(GL_FRAMEBUFFER, 0); // default framebuffer
+
+    glDisable(GL_BLEND);
+    glDepthMask(GL_TRUE);
+
+    glDisable(GL_DEPTH_TEST);
+    glDisable(GL_STENCIL_TEST);
+    glDisable(GL_CULL_FACE);
+
+    glClearColor(1.0, 1.0, 1.0, 1.0);
+    glClear(GL_COLOR_BUFFER_BIT);
+
+    auto shaderId = quadShader.GetShaderId();
+
+    // std::string name = std::string(quadShader.GetName());
+    // std::cout << "USING SHADER FOR QUAD: " <<shaderId << " Name: " << name << std::endl;
+
+    glUseProgram(shaderId);
+    glActiveTexture(GL_TEXTURE0);
+    glBindTexture(GL_TEXTURE_2D, target.colorTexture);
+    glUniform1i(glGetUniformLocation(shaderId, ID_UNIFORM_SCREEN_TEXTURE), 0);
+    glBindVertexArray(target.quadVAO);
+    glDrawArrays(GL_TRIANGLES, 0, 6);
+    // cleanup
+    glBindVertexArray(0);
+    glUseProgram(0);
+}
+
+
+
+
+void GL_RenderScene(Engine& engine) {
+    BindRenderTarget(renderTarget);
+
+    glm_vec3_copy(engine.settings.Ambient_Light_Color, engine.scene.ambientLightColor);
+    glm_vec3_copy(engine.settings.Direct_Light_Color, engine.scene.mainLight.color);
+    engine.scene.ambientIntensity = engine.settings.Ambient_Light_Brightness;
+    engine.scene.mainLight.intensity = engine.settings.Direct_Light_Intensity;
+
+
+    GL_ForwardRenderOpaques(engine.scene, engine.scene.camera, engine.assetManager, engine.settings);
+    if (engine.settings.RenderSkyBox) {
+        GL_RenderSkybox(engine.scene, engine.assetManager);
     }
-    // Default 2d
-    {
-        auto& material = assets.materials.GetNewObjectAndHandle(assets.materialDefault2d);
-        material.shaderName = "Default2D";
-        material.SetVectorDefinition(ID_COLOR_TINT, {0.9f, 0.9f, 0.9f, 1.0});
-        GL_InitMaterialProperties(material, assets);
+    else {
+        ClearBackgroundNoSkyBox();
     }
-    // Debug Shader
-    {
-        auto& material = assets.materials.GetNewObjectAndHandle(assets.materialDebug);
-        material.shaderName = "DebugShader";
-        GL_InitMaterialProperties(material, assets);
-    }
+
+    // GL_ForwardRenderTransparent(engine.scene, engine.scene.camera, engine.assetManager);
+
+    RenderScreenTexture(renderTarget, engine.assetManager.GetScreenRenderTextureShader());
 }

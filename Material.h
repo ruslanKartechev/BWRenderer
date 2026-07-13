@@ -11,6 +11,10 @@ struct vector4 {
     float w;
 };
 
+enum class RenderMode {
+    Opaque = 0,
+    Transparent = 1,
+};
 
 class Material {
 public:
@@ -29,6 +33,7 @@ public:
     bool writeDepth = true;
     bool isTransparent = false;
     bool didInit = false;
+    RenderMode renderMode = RenderMode::Opaque;
 
     void SetFloatDefinition(const std::string& name, float value);
     void SetVectorDefinition(const std::string& name, vector4 value);

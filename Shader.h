@@ -2,7 +2,7 @@
 
 #include <string>
 #include <cglm/cglm.h>
-
+#include "MyTypes.h"
 
 class Shader {
 public:
@@ -16,7 +16,10 @@ public:
     ~Shader();
 
     void SetName(const char* shaderName);
+
     static void GetVertexFragmentPath(const char* shaderName, std::string& out_vertexPath, std::string& out_fragmentPath);
+
+    static i32 ReadAndCompile(u32& newId, const std::string& m_vertexPath, const std::string& m_fragmentPath);
 
     [[nodiscard]] std::string& GetName();
 
@@ -27,11 +30,15 @@ public:
     // Activate the shader program
     void Use() const;
 
+    int Recompile();
+
     int LoadAndCompile();
 
 
+    [[nodiscard]] u32 GetShaderId() const;
     [[nodiscard]] bool IsCompiled() const;
-    [[nodiscard]] unsigned int GetShaderId() const;
+    [[nodiscard]] bool GetAcceptsLighting() const;
+    void SetAcceptsLighting(bool value);
 
     // Utility Uniform Setters
     void SetBool(const std::string& name, bool value) const;
@@ -43,7 +50,6 @@ public:
     void SetVec4(const std::string& name, const vec4 v) const;
     void SetMat4(const std::string& name, const mat4 m) const;
 
-
 private:
     // Helper function to check compilation/linking errors
     static bool CheckCompileErrors(unsigned int shaderID, int type);
@@ -53,5 +59,7 @@ private:
     std::string m_fragmentPath;
     bool m_isCompiled;
     bool m_hasErrors;
-    unsigned int m_ShaderID;
+    bool m_acceptsLighting;
+
+    u32 m_ShaderID = 0;
 };

@@ -26,7 +26,7 @@ class GameScene {
 
     Transform& GetTransformForObject(Handle& renderObjectHandle);
 
-    Handle CreateObjectWithCustomMesh(const char* path, vec3 position, vec3 rotation, vec3 scale, Handle materialHandle);
+    void AddCustomObject(const Handle& objHandle, vec3 position, vec3 rotation, vec3 scale);
 
     /**
      * Creates a new RenderObject and assigns a renderSubMesh with a given mesh and shader

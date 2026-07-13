@@ -196,13 +196,13 @@ void Mesh_DefaultQuad(Mesh& mesh) {
     mesh.vertexDataCount = 4 * mesh.stride;
     mesh.indexCount = 6;
     mesh.vertexData = new float[] {
-        -0.5f, -0.5f, 0.0f,   0.0f, 0.0f,   0.0f, 0.0f, 1.0f,
-         0.5f, -0.5f, 0.0f,   1.0f, 0.0f,   0.0f, 0.0f, 1.0f,
-         0.5f,  0.5f, 0.0f,   1.0f, 1.0f,   0.0f, 0.0f, 1.0f,
-        -0.5f,  0.5f, 0.0f,   0.0f, 1.0f,   0.0f, 0.0f, 1.0f
+        -0.5f, 0.0f, -0.5f,   0.0f, 0.0f,  0.0f, 1.0f, 0.0f,
+         0.5f, 0.0f, -0.5f,   1.0f, 0.0f,  0.0f, 1.0f, 0.0f,
+         0.5f, 0.0f,  0.5f,   1.0f, 1.0f,  0.0f, 1.0f, 0.0f,
+        -0.5f, 0.0f,  0.5f,   0.0f, 1.0f,  0.0f, 1.0f, 0.0f
     };
     mesh.indexData = new int[] {
-        0, 1, 2, 0, 2, 3
+        0, 2, 1, 0, 3, 2
     };
 }
 

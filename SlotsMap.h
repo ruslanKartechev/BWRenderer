@@ -25,7 +25,7 @@ public:
         return handles[index].generation;
     }
 
-    SlotMap(size_t reservedMemorySlots = 256) {
+    SlotMap(size_t reservedMemorySlots = 100) {
         slots.reserve(reservedMemorySlots);
         handles.reserve(reservedMemorySlots);
     }
@@ -75,7 +75,7 @@ public:
     /// Will either find a vacant unused object inside internal buffer or extend the buffer and create a new object.
     /// Returns a handle to a slot in the internal buffer
     Handle GetFreeHandle() {
-        u32 index;
+        u32 index = 0;
         int freeCount = freeIndices.size();
         if (!freeIndices.empty()) {
 
@@ -90,8 +90,9 @@ public:
         }
 
         index = static_cast<u32>(slots.size());
+
         slots.push_back(T());
-        handles.push_back(HandleSlot());
+        handles.emplace_back();
 
         handles[index].active = true;
         handles[index].generation = 1;

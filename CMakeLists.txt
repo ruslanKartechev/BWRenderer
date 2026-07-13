@@ -27,8 +27,6 @@ add_executable( RenderGL  WIN32  main.cpp
         PlatformWin32.cpp
         Shader.h
         Shader.cpp
-        Application.h
-        Application.cpp
         AssetManager.h
         AssetManager.cpp
         Texture.cpp
@@ -64,6 +62,9 @@ add_executable( RenderGL  WIN32  main.cpp
         SceneDefinition.h
         Engine.cpp
         Engine.h
+        ProjectDefines.h
+        ProjectSettings.h
+        ProjectSettings.cpp
 )
 
 

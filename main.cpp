@@ -3,7 +3,6 @@
 #include <glad/glad.h>
 #include <filesystem>
 #include "InputSystem.h"
-#include "Application.h"
 #include "PlatformWin32.h"
 #include "Shader.h"
 #include "Texture.h"
@@ -26,6 +25,7 @@
 #include "ShaderWatcher.h"
 #include "Engine.h"
 #include "SceneDefinition.h"
+#include "ProjectDefines.h"
 
 #define LOG(str) do {printf("%s\n", str);}while(false);
 #define LOG2(str1, str2) do {printf("%s1 %s2\n", str1, str2); }while(false);
@@ -34,10 +34,6 @@
 #define STR_VEC2(vec) "[" << vec[0]<< ", " << vec[1] << "]";
 #define STR_VEC3(vec) "[" << vec[0]<< ", " << vec[1] << ", " << vec[2] << "]";
 #define STR_VEC4(vec) "[" << vec[0]<< ", " << vec[1] << ", " << vec[2] << ", " << vec[3] << "]";
-
-
-static float cameraRotationSpeed = 6.0f;
-static float cameraMoveSpeed = 5.5f;
 
 
 // region Graphics Data Structures
@@ -59,11 +55,9 @@ typedef struct {
 // region Static Data
 static WindowParams mainWin = {};
 
-static Engine* engine = nullptr;
-
+static Engine* EnginePtr = nullptr;
 
 const char* SkyBoxName = "Skybox";
-
 
 
 void AddDebugGeometryForLights(GameScene& scene, AssetManager& assetManager) {
@@ -131,7 +125,7 @@ void InitBackground(FrameBufferUI& fbBackground) {
     fbBackground.ebo = ebo;
     fbBackground.currentQuadsCount = 2;
     fbBackground.idxCount = startIdxCount;
-    fbBackground.shaderId = engine->assetManager.GetDefault2D().GetShaderId();
+    fbBackground.shaderId = EnginePtr->assetManager.GetDefault2D().GetShaderId();
 }
 
 
@@ -140,48 +134,70 @@ void InitSkybox(Skybox& skyBox) {
     GL_AllocateGraphicsSkybox(skyBox.renderData);
 
     Handle matHandle = {};
-    Material& material = engine->assetManager.materials.GetNewObjectAndHandle(matHandle);
+    Material& material = EnginePtr->assetManager.materials.GetNewObjectAndHandle(matHandle);
+
     material.shaderName = Shader_SkyboxDefault;
     material.SetTextureDefinition(ID_SKYBOX_CUBEMAP, SkyBoxName);
+    material.SetFloatDefinition("_Brightness", 0.5f);
 
     skyBox.renderData.hMaterial = matHandle;
-    GL_InitMaterialProperties(material, engine->assetManager);
+    GL_InitMaterialProperties(material, EnginePtr->assetManager);
+
 }
 
 
-void InitShaders() {
+void LoadDefaultShaders(Engine& engine) {
 
-    Shader& default3D = engine->assetManager.shaders.GetNewObjectAndHandle(engine->assetManager.shaderDefault3D);
-    Shader& default2D = engine->assetManager.shaders.GetNewObjectAndHandle(engine->assetManager.shaderDefault2D);
-    Shader& debugShader = engine->assetManager.shaders.GetNewObjectAndHandle(engine->assetManager.shaderLightDebug);
-    Shader& defaultSkybox = engine->assetManager.shaders.GetNewObjectAndHandle(engine->assetManager.shaderDefaultSkybox);
+    Shader& default3D = engine.assetManager.shaders.GetNewObjectAndHandle(engine.assetManager.shaderDefault3D);
+    Shader& default2D = engine.assetManager.shaders.GetNewObjectAndHandle(engine.assetManager.shaderDefault2D);
+    Shader& debugShader = engine.assetManager.shaders.GetNewObjectAndHandle(engine.assetManager.shaderLightDebug);
+    Shader& defaultSkybox = engine.assetManager.shaders.GetNewObjectAndHandle(engine.assetManager.shaderDefaultSkybox);
+    Shader& renderTexture = engine.assetManager.shaders.GetNewObjectAndHandle(engine.assetManager.shaderScreenRenderTexture);
+
     // Assign names
     default3D.SetName("Default3D");
     default2D.SetName("Default2D");
     debugShader.SetName("DebugShader");
     defaultSkybox.SetName(Shader_SkyboxDefault);
+    renderTexture.SetName("ScreenRenderTexture");
     // Actually compile them
     default3D.LoadAndCompile();
     default2D.LoadAndCompile();
     debugShader.LoadAndCompile();
     defaultSkybox.LoadAndCompile();
-
+    renderTexture.LoadAndCompile();
+#ifdef LOG_DEFAULT_SHADER_COMP
     std::cout << "[shader] compiled " << default3D.GetName() << " " << default3D.GetShaderId() << std::endl;
     std::cout << "[shader] compiled " << default2D.GetName() << " " << default2D.GetShaderId() << std::endl;
     std::cout << "[shader] compiled " << debugShader.GetName() << " " << debugShader.GetShaderId() << std::endl;
     std::cout << "[shader] compiled " << defaultSkybox.GetName() << " " << defaultSkybox.GetShaderId() << std::endl;
+#endif
 
-    engine->shaderWatcher.RegisterShader(default3D);
-    engine->shaderWatcher.RegisterShader(default2D);
-    engine->shaderWatcher.RegisterShader(debugShader);
-    engine->shaderWatcher.RegisterShader(defaultSkybox);
+    default3D.SetAcceptsLighting(true);
 
+    engine.shaderWatcher.WatchShader(default3D);
+    engine.shaderWatcher.WatchShader(default2D);
+    engine.shaderWatcher.WatchShader(debugShader);
+    engine.shaderWatcher.WatchShader(defaultSkybox);
+    engine.shaderWatcher.WatchShader(renderTexture);
+
+
+    // NEW SHADERS
+    {
+        Handle h {};
+        Shader& treeShader = engine.assetManager.shaders.GetNewObjectAndHandle(h);
+        treeShader.SetName("Tree");
+        treeShader.LoadAndCompile();
+        treeShader.SetAcceptsLighting(true);
+        engine.shaderWatcher.WatchShader(treeShader);
+
+    }
 }
 
 
 void LoadSkyboxTexture(const char* textureName) {
     Handle h = {};
-    Texture& texture = engine->assetManager.GetNewTextureObject(h);
+    Texture& texture = EnginePtr->assetManager.GetNewTextureObject(h);
     texture.name = textureName;
 
     std::vector<std::string> facePaths = {};
@@ -191,8 +207,8 @@ void LoadSkyboxTexture(const char* textureName) {
     }
     facePaths[0] = std::string(textureName) + "/nx.png";
     facePaths[1] = std::string(textureName) + "/px.png";
-    facePaths[2] = std::string(textureName) + "/ny.png";
-    facePaths[3] = std::string(textureName) + "/py.png";
+    facePaths[2] = std::string(textureName) + "/py.png";
+    facePaths[3] = std::string(textureName) + "/ny.png";
     facePaths[4] = std::string(textureName) + "/nz.png";
     facePaths[5] = std::string(textureName) + "/pz.png";
 
@@ -200,7 +216,7 @@ void LoadSkyboxTexture(const char* textureName) {
 }
 
 void LoadDefaultTextures() {
-    engine->assetManager.CreateDefaultWhiteTexture();
+    EnginePtr->assetManager.CreateDefaultWhiteTexture();
     LoadSkyboxTexture(SkyBoxName);
 }
 
@@ -208,23 +224,23 @@ void LoadDefaultTextures() {
 
 
 void InitCamera() {
-    Camera& camera = engine->scene.camera;
-    Transform& cameraTransform = engine->scene.transforms.GetNewObjectAndHandle(camera.transformHandle);
+    Camera& camera = EnginePtr->scene.camera;
+    Transform& cameraTransform = EnginePtr->scene.transforms.GetNewObjectAndHandle(camera.transformHandle);
     Transform_Init(cameraTransform);
 }
 
 
 // region Loops
 void StartFrame() {
-    GL_UpdateBackground(engine->scene);
-    Camera& camera = engine->scene.camera;
+    Camera& camera = EnginePtr->scene.camera;
     camera.UpdateAspectRationWidthHeight(static_cast<float>(mainWin.width), static_cast<float>(mainWin.height));
-    Transform& cameraTransform = engine->scene.transforms.GetItemRef(camera.transformHandle);
+    Transform& cameraTransform = EnginePtr->scene.transforms.GetItemRef(camera.transformHandle);
     camera.UpdateMatrices(cameraTransform);
 }
 
 void EndFrame() {
     SwapBuffers(mainWin.dc);
+    EnginePtr->shaderWatcher.ProcessReloads();
 }
 
 
@@ -236,31 +252,19 @@ void UpdateSceneTransforms(GameScene& scene) {
 }
 
 
-
-
 void RenderUI() {
     glDisable(GL_DEPTH_TEST);
     glDisable(GL_CULL_FACE);
-
-}
-
-
-void Animations() {
-    float dt = Time_GetDelta();
-    float rotDelta = 25.0f * dt;
-    for(auto& handle : engine->scene.existingObjects) {
-        // Transform& tr = transforms.GetItemRef(obj.transformHandle);
-        // RotateLocalY(tr, rotDelta);
-    }
 }
 
 
 void RenderLoop() {
+    Engine& eng = *EnginePtr;
+
+    UpdateSceneTransforms(eng.scene);
     StartFrame();
-    UpdateSceneTransforms(engine->scene);
-    GL_ForwardRenderOpaques(engine->scene, engine->scene.camera, engine->assetManager);
-    // RenderBackground();
-    GL_RenderSkybox(engine->scene, engine->assetManager);
+    GL_UpdateBackground(eng.scene);
+    GL_RenderScene(eng);
 
     RenderUI();
     EndFrame();
@@ -271,7 +275,9 @@ void RenderLoop() {
 
 void ControlCamera() {
     float dt = (float)Time_GetDelta();
-    Transform& cameraTransform = engine->scene.transforms.GetItemRef(engine->scene.camera.transformHandle);
+    Transform& cameraTransform = EnginePtr->scene.transforms.GetItemRef(EnginePtr->scene.camera.transformHandle);
+    float moveSpeed = EnginePtr->settings.Camera_Move_Speed;
+    float rotSpeed  = EnginePtr->settings.Camera_Rotation_Speed;
 
     vec3 localMove = {};
     float verticalShift = 0;
@@ -300,7 +306,7 @@ void ControlCamera() {
     if (Input_IsMouseButtonHeld(GameInputKey::MOUSE_BUTTON_RIGHT)) {
         vec2 mouseDelta;
         Input_GetMouseDelta(mouseDelta);
-        glm_vec2_scale(mouseDelta, dt * cameraRotationSpeed, mouseDelta);
+        glm_vec2_scale(mouseDelta, dt * rotSpeed, mouseDelta);
 
         vec3 eulersBefore;
         vec3 eulersAfter;
@@ -313,16 +319,28 @@ void ControlCamera() {
 
     vec3 worldMove;
     Transform_ToWorldVector(cameraTransform, localMove, worldMove);
-    glm_vec3_scale(worldMove, dt * cameraMoveSpeed, worldMove);
+    glm_vec3_scale(worldMove, dt * moveSpeed, worldMove);
     vec3 verticalMove = {0,1,0};
-    glm_vec3_scale(verticalMove, dt * verticalShift * cameraMoveSpeed, verticalMove);
+    glm_vec3_scale(verticalMove, dt * verticalShift * moveSpeed, verticalMove);
     glm_vec3_add(worldMove, verticalMove, worldMove);
     glm_vec3_add(cameraTransform.position, worldMove, cameraTransform.position);
 }
 
+void ControlSettings() {
+
+    if (Input_IsKeyDown(GameInputKey::KEY_G)) {
+        EnginePtr->settings.Gamma_Correction  = !EnginePtr->settings.Gamma_Correction;
+        std::cout << "Set gamma correction state: " << EnginePtr->settings.Gamma_Correction << std::endl;
+    }
+    else if (Input_IsKeyUp(GameInputKey::KEY_G)){
+        std::cout << "Set G KEY UP " << std::endl;
+
+    }
+}
 
 void ControlsLoop() {
     ControlCamera();
+    ControlSettings();
 }
 
 
@@ -341,9 +359,18 @@ int Win_Move(uint32_t newWidth, uint32_t newHeight) {
 }
 
 int Win_Resize(uint32_t newWidth, uint32_t newHeight) {
-    mainWin.width = newWidth;
-    mainWin.height = newHeight;
-    glViewport(0, 0, newWidth, newHeight);
+    bool didChange = false;
+    if (mainWin.width != newWidth) {
+        mainWin.width = newWidth;
+        didChange = true;
+    }
+    if (mainWin.height != newHeight) {
+        mainWin.height = newHeight;
+        didChange = true;
+    }
+    if (didChange) {
+        GL_ResizeRenderTarget(newWidth, newHeight);
+    }
     return 0;
 }
 // endregion
@@ -362,19 +389,21 @@ void FetchProjectPath(std::string &exePath, std::string &resourcesPat) {
 
 
 void InitDefaults() {
+    Engine& engine = *EnginePtr;
 
     Time_Init();
     Time_SetTargetFrameRate(60);
+    GL_InitGraphics(mainWin.width, mainWin.height);
 
-    InitShaders();
+    LoadDefaultShaders(engine);
     LoadDefaultTextures();
-    GL_InitDefaultMaterials(engine->assetManager);
-    InitSkybox(engine->scene.skybox);
+
+    GL_InitDefaultMaterials(engine.assetManager);
+    InitSkybox(engine.scene.skybox);
     InitCamera();
 
-
-    RunGameScene();
-    AddDebugGeometryForLights(engine->scene, engine->assetManager);
+    RunGameSceneInit();
+    AddDebugGeometryForLights(engine.scene, engine.assetManager);
 }
 
 
@@ -400,15 +429,22 @@ void SpinWait() {
 }
 
 
+void CreateEngine() {
+    EnginePtr = Engine::GetInstance();
+    auto& engine = *EnginePtr;
+    InitDefaults();
+    engine.UpdateSettings();
+    engine.shaderWatcher.WatchSettingsFile();
+
+}
+
 int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE prevInstance, LPSTR lpCmdLine, int nShowCmd) {
 
     try {
-        engine = Engine::GetInstance();
-
         MakeConsole();
 
-        FetchProjectPath(Application::RootPath, Application::ResourcesPath);
-        printf("-- RootPath %s,  ResourcesPath %s \n", Application::RootPath.c_str(), Application::ResourcesPath.c_str());
+        FetchProjectPath(ProjectSettings::RootPath, ProjectSettings::ResourcesPath);
+        printf("-- RootPath %s,  ResourcesPath %s \n", ProjectSettings::RootPath.c_str(), ProjectSettings::ResourcesPath.c_str());
 
         mainWin.name = "Renderer Window";
         mainWin.width = 1024;
@@ -427,7 +463,7 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE prevInstance, LPSTR lpCmdLine,
             return -10;
         }
 
-        InitDefaults();
+        CreateEngine();
     }
     catch(std::exception& e) {
         std::cerr << e.what() << std::endl;
@@ -440,9 +476,9 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE prevInstance, LPSTR lpCmdLine,
             // printf("Frame %d, Delta: %f \n", Time_GetFrameCountInt(), Time_GetDelta());
             Time_Update();
             Win32WindowUpdate(mainWin);
-            Input_Update();
             RenderLoop();
             ControlsLoop();
+            Input_Update();
         }
         catch (std::exception& e) {
             std::cerr << e.what() << std::endl;

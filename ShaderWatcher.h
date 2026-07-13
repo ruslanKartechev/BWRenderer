@@ -18,11 +18,21 @@ struct TrackedShader {
 };
 
 
+struct TrackedFile {
+    std::string filePath;
+    fs::file_time_type lastChangeTime;
+    bool updated;
+};
+
+
+
 class ShaderWatcher {
 public:
     ShaderWatcher();
 
-    void RegisterShader(Shader& shader);
+    void WatchShader(Shader& shader);
+
+    void WatchSettingsFile();
 
     void ProcessReloads();
 
@@ -31,6 +41,7 @@ private:
     std::vector<TrackedShader> reloadQueue;
     std::mutex queueMutex;
     std::jthread workerThread;
+    TrackedFile trackedSettings;
 
     static fs::file_time_type GetFileTime(const std::string& path);
 

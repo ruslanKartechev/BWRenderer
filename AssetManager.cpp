@@ -6,19 +6,22 @@
 #include "assimp/assimp/Importer.hpp"
 #include "assimp/assimp/scene.h"
 #include "assimp/assimp/postprocess.h"
-#include "Application.h"
 #include "AssetManager.h"
 
+#include "ProjectSettings.h"
 #include "RenderSubMesh.h"
 #include "stb_image.h"
 
 
 static const int MAX_STRCMP_ITERATIONS = 128;
 
+std::string AssetManager::GetProjectSettingsPath() {
+    return GetGlobalPath("Settings.ini");
+}
 
 std::string AssetManager::GetGlobalPath(const char* resourcesPath)
 {
-    std::filesystem::path fullPath = (Application::ResourcesPath);
+    std::filesystem::path fullPath = (ProjectSettings::ResourcesPath);
     fullPath = fullPath / resourcesPath;
     fullPath.make_preferred();
     return fullPath.string();
@@ -26,7 +29,7 @@ std::string AssetManager::GetGlobalPath(const char* resourcesPath)
 
 std::string AssetManager::GetGlobalPathTextures(const char* resourcesPath)
 {
-    std::filesystem::path fullPath = (Application::ResourcesPath);
+    std::filesystem::path fullPath = (ProjectSettings::ResourcesPath);
     fullPath = fullPath / "Textures" / resourcesPath;
     fullPath.make_preferred();
     return fullPath.string();
@@ -34,14 +37,14 @@ std::string AssetManager::GetGlobalPathTextures(const char* resourcesPath)
 
 std::string AssetManager::GetGlobalPathShader(const char* resourcesPath)
 {
-    std::filesystem::path fullPath = (Application::ResourcesPath);
+    std::filesystem::path fullPath = (ProjectSettings::ResourcesPath);
     fullPath = fullPath / "Shaders" / resourcesPath;
     fullPath.make_preferred();
     return fullPath.string();
 }
 std::string AssetManager::GetGlobalPathModel(const char* resourcesPath)
 {
-    std::filesystem::path fullPath = (Application::ResourcesPath);
+    std::filesystem::path fullPath = (ProjectSettings::ResourcesPath);
     fullPath = fullPath / "Models" / resourcesPath;
     fullPath.make_preferred();
     return fullPath.string();
@@ -49,7 +52,7 @@ std::string AssetManager::GetGlobalPathModel(const char* resourcesPath)
 
 
 bool AssetManager::ReadStringContent(std::string &content, const char* path) {
-    std::filesystem::path fullPath = (Application::ResourcesPath);
+    std::filesystem::path fullPath = (ProjectSettings::ResourcesPath);
     fullPath = fullPath / path;
     fullPath.make_preferred(); // convert slash to backslash (or vice versa)
 
@@ -129,8 +132,8 @@ Handle ParseIntoRenderObject(aiNode* node, const aiScene& aiScene, GameScene& ga
     Transform& objTransform = gameScene.transforms.GetNewObjectAndHandle(renderObject.hTransform);
     Transform_Init(objTransform);
 
-    renderObject.meshData.resize(node->mNumMeshes);
-    renderObject.shadersAssigned = false;
+    renderObject.subMeshses.resize(node->mNumMeshes);
+    renderObject.name = std::string(node->mName.C_Str());
 
     size_t renderMeshCount = 0;
     for (size_t i = 0; i < node->mNumMeshes; i++) {
@@ -141,52 +144,53 @@ Handle ParseIntoRenderObject(aiNode* node, const aiScene& aiScene, GameScene& ga
         }
         aiMesh& aiMesh = *aiScene.mMeshes[idx];
 
-        Handle hMesh;
+
+        Handle hMesh = {0,0};
         Mesh& gameMesh = gameScene.meshes.GetNewObjectAndHandle(hMesh);
         ParseAssimpMesh(aiMesh, gameMesh);
-        // printf("!! MESH HDL !! obj handle %d, %d\n", hMesh.index, hMesh.generation);
-        // Mesh_Print(gameMesh);
 
         renderMeshCount++;
-        if (renderObject.meshData.size() < renderMeshCount) {
-            renderObject.meshData.resize(renderMeshCount);
+        if (renderObject.subMeshses.size() < renderMeshCount) {
+            renderObject.subMeshses.resize(renderMeshCount);
         }
-        RenderSubMesh& renderData = renderObject.meshData[renderMeshCount-1];
+        RenderSubMesh& renderData = renderObject.subMeshses[renderMeshCount-1];
         renderData.hMesh = hMesh;
     }
     return objHandle;
 }
 
-
-void ParseSceneRecursive(aiNode* node, const aiScene& aiScene, GameScene& gameScene, Handle& rootHandle) {
+/// Parses the first non-empty mesh only
+bool ParseSceneRecursive(aiNode* node, const aiScene& aiScene, GameScene& gameScene, std::vector<Handle>& renderObjects) {
     if(node->mNumMeshes > 0) {
         Handle newObjHandle = ParseIntoRenderObject(node, aiScene, gameScene);
-        if (rootHandle.index == 0 && rootHandle.generation == 0) {
-            rootHandle.generation = newObjHandle.generation;
-            rootHandle.index = newObjHandle.index;
-        }
+        renderObjects.push_back(newObjHandle);
+        // if (rootHandle.index == 0 && rootHandle.generation == 0) {
+        //     rootHandle.generation = newObjHandle.generation;
+        //     rootHandle.index = newObjHandle.index;
+        // }
     }
     for (size_t i = 0; i < node->mNumChildren; i++) {
-        ParseSceneRecursive(node->mChildren[i], aiScene, gameScene, rootHandle);
+        ParseSceneRecursive(node->mChildren[i], aiScene, gameScene, renderObjects);
     }
+    return true;
 }
 
 
-Handle AssetManager::LoadModel(const char* path, GameScene& gameScene, int num){
+int AssetManager::LoadModelsFromFbx(const char* path, GameScene& gameScene, std::vector<Handle>& objectsHandles){
     auto filePath = GetGlobalPathModel(path);
     Assimp::Importer importer;
     const aiScene* scene = importer.ReadFile(filePath, aiProcess_Triangulate | aiProcess_FlipUVs | aiProcess_GenSmoothNormals);
     if (scene == nullptr) {
         std::cerr << "FAILED TO LOAD SCENE" << std::endl;
-        return {0,0};
+        return 1;
     }
     if (scene->mRootNode == nullptr) {
         std::cerr << "The root node is null!" << std::endl;
-        return {0,0};
+        return 2;
     }
-    Handle rootHandle = {0,0};
-    ParseSceneRecursive(scene->mRootNode, *scene, gameScene, rootHandle);
-    return rootHandle;
+
+    ParseSceneRecursive(scene->mRootNode, *scene, gameScene, objectsHandles);
+    return 0;
 }
 
 
@@ -208,14 +212,14 @@ Shader& AssetManager::GetSkyboxDefault() {
 Shader& AssetManager::GetFallback() {
     return shaders.GetItemRef(shaderFallback);
 }
-
+Shader& AssetManager::GetScreenRenderTextureShader() {
+    // printf("[SR] Getting item ref %d, %d \n", h.index, h.generation);
+    return shaders.GetItemRef(shaderScreenRenderTexture);
+}
 Shader& AssetManager::GetShader(Handle h) {
     // printf("[SR] Getting item ref %d, %d \n", h.index, h.generation);
     return shaders.GetItemRef(h);
 }
-
-
-
 
 
 // region Textures
@@ -224,6 +228,18 @@ Texture& AssetManager::GetNewTextureObject(Handle& outHandle) {
     auto& texture = textures.GetNewObjectAndHandle(outHandle);
     texture.isLoaded = false;
     return texture;
+}
+
+
+bool AssetManager::LoadTexturesForMaterials(Material& material) {
+    bool loaded = true;
+    for (auto& pair : material.texturesDefinitions) {
+        Handle h = {};
+        Texture& texture = GetNewTextureObject(h);
+        bool didLoad = LoadTextureAtPath(texture, pair.second.c_str(), true);
+        loaded &= didLoad;
+    }
+    return loaded;
 }
 
 
@@ -239,6 +255,7 @@ bool AssetManager::LoadTextureAtPath(Texture &texture, const char *relativePath,
     if (texture.pixels != nullptr) {
         free(texture.pixels);
     }
+    std::cout << "[Assets] Loading texture: "<<gloalPath<<std::endl;
     texture.pixels = nullptr;
     texture.pixels = stbi_load(gloalPath.c_str(), &sizeX, &sizeY, &nrChannels, 4);
     if (texture.pixels == nullptr) {
@@ -254,11 +271,9 @@ bool AssetManager::LoadTextureAtPath(Texture &texture, const char *relativePath,
     if (uploadToGPU) {
         texture.UploadToGL(true);
     }
-
-    std::cout << "---------- 1  " << texture.name << " GL HANDEL AfTER UPLOAD  " << texture.glHandle << std::endl;
-
     return true;
 }
+
 
 bool AssetManager::LoadTextureCubemap(Texture& texture, std::vector<std::string>& facePaths) {
     bool didLoad = true;
@@ -276,21 +291,25 @@ bool AssetManager::LoadTextureCubemap(Texture& texture, std::vector<std::string>
     texture.glHandle = textureID;
     texture.isLoaded = true;
 
+    stbi_set_flip_vertically_on_load(false);
+
     for (size_t i = 0; i < facePaths.size(); i++) {
         i32 width, height, nrChannels;
         std::string loadPath = GetGlobalPathTextures(facePaths[i].c_str());
-        std::cout << "Loading from: " << loadPath << std::endl;
+        std::cout << "Loading part of image from: " << loadPath << std::endl;
 
-        unsigned char* data = stbi_load(loadPath.c_str(), &width, &height, &nrChannels, 0);
-        if (data) {
+        unsigned char* pixelData = stbi_load(loadPath.c_str(), &width, &height, &nrChannels, 0);
+
+        if (pixelData) {
             // OpenGL enum go like: (Right, Left, Top, Bottom, Front, Back)
             GLenum format = (nrChannels == 4) ? GL_RGBA : GL_RGB;
-            glTexImage2D(GL_TEXTURE_CUBE_MAP_POSITIVE_X + i, 0, format, width, height, 0, GL_RGB, GL_UNSIGNED_BYTE, data);
-            stbi_image_free(data);
+            glTexImage2D(GL_TEXTURE_CUBE_MAP_POSITIVE_X + i, 0, format, width, height, 0, format, GL_UNSIGNED_BYTE, pixelData);
+            stbi_image_free(pixelData);
         }
         else {
             std::cout << "Failed to load cubemap texture at: " << facePaths[i] << std::endl;
-            stbi_image_free(data);
+            if (pixelData != nullptr)
+                stbi_image_free(pixelData);
             didLoad = false;
         }
     }
@@ -299,6 +318,7 @@ bool AssetManager::LoadTextureCubemap(Texture& texture, std::vector<std::string>
     glTexParameteri(GL_TEXTURE_CUBE_MAP, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
     glTexParameteri(GL_TEXTURE_CUBE_MAP, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
     glTexParameteri(GL_TEXTURE_CUBE_MAP, GL_TEXTURE_WRAP_R, GL_CLAMP_TO_EDGE);
+
     return didLoad;
 }
 
@@ -333,15 +353,14 @@ Handle AssetManager::FindTextureByName(const char* name) {
         if (obj.name == nullptr) {
             continue;
         }
-
-        std::cout << "[Assets] texture name: " <<  obj.name << std::endl;
+        // std::cout << "[AssetsSearch] texture name: " <<  obj.name << std::endl;
         if (std::strncmp(obj.name, name, MAX_STRCMP_ITERATIONS) == 0) {
 
             return Handle(idx, textures.GetGenerationFor(idx));
         }
         idx++;
     }
-    std::cout << "[Assets] Failed to FIND matching texture!" << std::endl;
+    std::cout << "[AssetsSearch] Failed to FIND matching texture!" << std::endl;
     return Handle(0,0);
 }
 

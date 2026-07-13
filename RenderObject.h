@@ -5,14 +5,14 @@
 
 class RenderObject {
 public:
-    std::vector<RenderSubMesh> meshData;
+    std::vector<RenderSubMesh> subMeshses;
     Handle hTransform;
     std::string name;
-    bool shadersAssigned;
 
     void SetName(const char* name);
 
-    void AppendNewMeshAndShader(const Handle meshHandle, const Handle shaderHandle);
+    void AppendNewMeshAndShader(const Handle& meshHandle, const Handle& shaderHandle);
 
+    void SetMaterialAll(const Handle& handle);
 };
 
