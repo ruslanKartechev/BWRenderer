@@ -5,6 +5,7 @@
 #include "Texture.h"
 #include "Handle.h"
 #include "GameScene.h"
+#include "assimp/assimp/scene.h"
 
 class AssetManager {
 public:
@@ -23,13 +24,25 @@ public:
     Handle materialDefault3d;
     Handle materialDefault2d;
 
+    // Default meshes
+    Handle meshCube;
+    Handle meshSphere;
+    Handle meshCapsule;
+    Handle meshPlane;
+    Handle meshQuad;
+    Handle meshPyramid;
+    Handle meshDonut;
+    Handle meshCutCone;
+
     // Per-type data storage
     SlotMap<Shader> shaders = {};
     SlotMap<Material> materials = {};
     SlotMap<Texture> textures = {};
+    SlotMap<Mesh> meshes = {};
 
     // Textures
     Handle defaultWhiteTexture = {};
+    Handle defaultNormal = {};
 
 
     static std::string GetGlobalPath(const char* resourcesPath);
@@ -45,7 +58,9 @@ public:
 
     bool LoadTexturesForMaterials(Material& material);
 
-    static int LoadModelsFromFbx(const char* path, GameScene& gameScene, std::vector<Handle>& objectsHandles);
+    int LoadModelsFromFbx(const char* path, GameScene& gameScene, std::vector<Handle>& objectsHandles);
+
+    int LoadMeshesFromFBX(const char* path, GameScene& gameScene, std::vector<Handle>& newMeshHandles);
 
     /**
      * @param texture reference to a pre-allocated texture Object
@@ -61,6 +76,7 @@ public:
 
     void CreateDefaultWhiteTexture();
 
+    void CreateDefaultNormalMap();
 
     Shader& GetDefault3D();
     Shader& GetDefault2D();
@@ -70,7 +86,14 @@ public:
     Shader& GetShader(Handle h);
 
     Handle FindTextureByName(const char* name);
+
     Handle FindShaderByName(const char* name);
+
+    Handle FindMeshByName(const char* name);
+
+private:
+    Handle ParseIntoRenderObject(aiNode* node, const aiScene& aiScene, GameScene& gameScene);
+    bool ParseSceneRecursive(aiNode* node, const aiScene& aiScene, GameScene& gameScene, std::vector<Handle>& newHandles);
 
 };
 

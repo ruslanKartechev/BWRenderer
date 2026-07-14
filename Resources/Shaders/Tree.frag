@@ -30,19 +30,16 @@ void main(){
     }
 
     vec3 norm = normalize(out_normal);
-    vec3 lightDir = normalize(-DIRECTIONAL_LIGHT.direction);
+    vec3 invLightDir = normalize(-DIRECTIONAL_LIGHT.direction);
     // Diffuse shading
-    float diff = max(dot(norm, lightDir), 0.0);
-    vec3 diffuse = diff * DIRECTIONAL_LIGHT.color;
+    vec3 diffuse = max(dot(norm, invLightDir), 0.0) * DIRECTIONAL_LIGHT.color;
     // Specular shading
     vec3 viewDir = normalize(VIEW_POS - FragPos);
-    vec3 reflectDir = reflect(-lightDir, norm);
+    vec3 reflectDir = reflect(-invLightDir, norm);
     float spec = pow(max(dot(viewDir, reflectDir), 0.0), 25);
-//    vec3 specular = _SPECULAR_POWER * spec * DIRECTIONAL_LIGHT.color;
-    // Ambient + Diffuse + Specular
-    vec3 lightingTotal = (_AMBIENT_LIGHT_COLOR * _AMBIENT_LIGHT_INTENSITY) + diffuse;
+    // Ambient
+    vec3 ambient = (_AMBIENT_LIGHT_COLOR * _AMBIENT_LIGHT_INTENSITY);
 
+    vec3 lightingTotal = ambient + diffuse + spec;
     FragColor = normalize(texColor * out_vertColor * vec4(lightingTotal, 1.0));
-    FragColor = vec4(texColor.rgb, 1.0);
-//    FragColor = vec4(1,1,1,1);
 }

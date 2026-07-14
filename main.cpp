@@ -60,10 +60,10 @@ static Engine* EnginePtr = nullptr;
 const char* SkyBoxName = "Skybox";
 
 
-void AddDebugGeometryForLights(GameScene& scene, AssetManager& assetManager) {
+void AddDebugGeometryForLights(GameScene& scene, AssetManager& assets) {
     {
         vec3 pos, eulers, scale;
-        Handle objHandle = scene.NewObject_CutConeNamed("Light Debug", pos, eulers, scale, assetManager.materialDebug);
+        Handle objHandle = scene.NewObject_SingleSubMesh("Light Debug", assets.meshCutCone, pos, eulers, scale, assets.materialDebug);
         scene.existingObjects.push_back(objHandle);
         auto& newObj = scene.renderObjects.GetItemRef(objHandle);
         scene.transforms.FreeHandle(newObj.hTransform);
@@ -132,15 +132,8 @@ void InitBackground(FrameBufferUI& fbBackground) {
 
 void InitSkybox(Skybox& skyBox) {
     GL_AllocateGraphicsSkybox(skyBox.renderData);
-
-    Handle matHandle = {};
-    Material& material = EnginePtr->assetManager.materials.GetNewObjectAndHandle(matHandle);
-
-    material.shaderName = Shader_SkyboxDefault;
-    material.SetTextureDefinition(ID_SKYBOX_CUBEMAP, SkyBoxName);
-    material.SetFloatDefinition("_Brightness", 0.5f);
-
-    skyBox.renderData.hMaterial = matHandle;
+    Material& material = EnginePtr->assetManager.materials.GetItemRef(EnginePtr->assetManager.materialSkybox);
+    skyBox.renderData.hMaterial = EnginePtr->assetManager.materialSkybox;
     GL_InitMaterialProperties(material, EnginePtr->assetManager);
 
 }
@@ -199,7 +192,7 @@ void LoadSkyboxTexture(const char* textureName) {
     Handle h = {};
     Texture& texture = EnginePtr->assetManager.GetNewTextureObject(h);
     texture.name = textureName;
-
+    texture.pixelFormat = 1;
     std::vector<std::string> facePaths = {};
     facePaths.reserve(6);
     for (size_t i = 0; i < 6; ++i) {
@@ -215,13 +208,51 @@ void LoadSkyboxTexture(const char* textureName) {
     AssetManager::LoadTextureCubemap(texture, facePaths);
 }
 
+
 void LoadDefaultTextures() {
     EnginePtr->assetManager.CreateDefaultWhiteTexture();
+    EnginePtr->assetManager.CreateDefaultNormalMap();
     LoadSkyboxTexture(SkyBoxName);
 }
 
-
-
+void LoadDefaultMeshes() {
+    auto& assets = EnginePtr->assetManager;
+    {
+        Mesh& mesh = assets.meshes.GetNewObjectAndHandle(assets.meshCube);
+        Mesh_DefaultCube(mesh);
+        mesh.name = MESH_CUBE;
+    }
+    {
+        Mesh& mesh = assets.meshes.GetNewObjectAndHandle(assets.meshCapsule);
+        Mesh_DefaultCapsule(mesh);
+        mesh.name = MESH_CAPSULE;
+    }
+    {
+        Mesh& mesh = assets.meshes.GetNewObjectAndHandle(assets.meshDonut);
+        Mesh_DefaultDonut(mesh);
+        mesh.name = MESH_DONUT;
+    }
+    {
+        Mesh& mesh = assets.meshes.GetNewObjectAndHandle(assets.meshPlane);
+        Mesh_DefaultPlane(mesh);
+        mesh.name = MESH_PLANE;
+    }
+    {
+        Mesh& mesh = assets.meshes.GetNewObjectAndHandle(assets.meshQuad);
+        Mesh_DefaultQuad(mesh);
+        mesh.name = MESH_QUAD;
+    }
+    {
+        Mesh& mesh = assets.meshes.GetNewObjectAndHandle(assets.meshPyramid);
+        Mesh_DefaultPyramid(mesh);
+        mesh.name = MESH_PYRAMID;
+    }
+    {
+        Mesh& mesh = assets.meshes.GetNewObjectAndHandle(assets.meshCutCone);
+        Mesh_DefaultCutCone(mesh);
+        mesh.name = MESH_CUT_CONE;
+    }
+}
 
 void InitCamera() {
     Camera& camera = EnginePtr->scene.camera;
@@ -330,11 +361,7 @@ void ControlSettings() {
 
     if (Input_IsKeyDown(GameInputKey::KEY_G)) {
         EnginePtr->settings.Gamma_Correction  = !EnginePtr->settings.Gamma_Correction;
-        std::cout << "Set gamma correction state: " << EnginePtr->settings.Gamma_Correction << std::endl;
-    }
-    else if (Input_IsKeyUp(GameInputKey::KEY_G)){
-        std::cout << "Set G KEY UP " << std::endl;
-
+        std::cout << "[GammaCorrection]: " << EnginePtr->settings.Gamma_Correction << std::endl;
     }
 }
 
@@ -396,6 +423,7 @@ void InitDefaults() {
     GL_InitGraphics(mainWin.width, mainWin.height);
 
     LoadDefaultShaders(engine);
+    LoadDefaultMeshes();
     LoadDefaultTextures();
 
     GL_InitDefaultMaterials(engine.assetManager);

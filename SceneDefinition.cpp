@@ -30,9 +30,10 @@ void InitSceneMaterials(AssetManager& assets) {
     // Floor
     {
         auto& material = assets.materials.GetNewObjectAndHandle(h_mat_Floor);
-        material.shaderName = defaultShaderName;
+        GL_InitMaterialParametersDefault3D(material);
         material.SetVectorDefinition(ID_COLOR_TINT, {0.99f, 0.99f, 0.99f, 1.0});
-        material.SetFloatDefinition(ID_SPECULAR_POWER, 32);
+        material.SetFloatDefinition(ID_SMOOTHNESS, .6f);
+        material.SetFloatDefinition(ID_METALLIC, .55f);
 
         material.SetTextureDefinition(ID_BASE_MAP, "tile_concrete.png");
         material.SetTextureDefinition(ID_NORMAL_MAP, "tile_concrete_normal.jpg");
@@ -44,19 +45,37 @@ void InitSceneMaterials(AssetManager& assets) {
     // Table
     {
         auto& material = assets.materials.GetNewObjectAndHandle(h_mat_Table);
-        material.shaderName = defaultShaderName;
+        GL_InitMaterialParametersDefault3D(material);
         material.SetVectorDefinition(ID_COLOR_TINT, {0.75f, 0.7f, 0.95f, 1.0});
-        material.SetFloatDefinition(ID_SPECULAR_POWER, 15);
+        material.SetFloatDefinition(ID_SMOOTHNESS, .25f);
+        material.SetFloatDefinition(ID_METALLIC, .25f);
+
         material.SetTextureDefinition(ID_BASE_MAP, "PicnicTable_MTL_baseColor.png");
         material.SetTextureDefinition(ID_NORMAL_MAP, "PicnicTable_MTL_normal.png");
         assets.LoadTexturesForMaterials(material);
+        GL_InitMaterialProperties(material, assets);
+    }
+    // Metallic
+    {
+        std::cout << "Metallic material init" << std::endl;
+        auto& material = assets.materials.GetNewObjectAndHandle(h_mat_Metal);
+        GL_InitMaterialParametersDefault3D(material);
+
+        material.SetFloatDefinition(ID_SMOOTHNESS, 0.65f);
+        material.SetFloatDefinition(ID_METALLIC, 1.0f);
+
+        constexpr float shade = .05f;
+        material.SetVectorDefinition(ID_COLOR_TINT, {shade, shade, shade, 1.0});
+
+        material.SetVectorDefinition(ID_BASE_MAP_TO, {1.0f, 1.0f, 0.0f, 0.0f});
+        // assets.LoadTexturesForMaterials(material);
         GL_InitMaterialProperties(material, assets);
     }
     // Tree mat 1
     {
         auto& material = assets.materials.GetNewObjectAndHandle(h_mat_tree);
         material.shaderName = "Tree";
-        material.SetFloatDefinition(ID_SPECULAR_POWER, 12.0f);
+
         material.SetFloatDefinition(ID_ALPHA_CLIP_VALUE, .5f);
         material.SetVectorDefinition(ID_COLOR_TINT, {0.99f, 0.99f, 0.99f, 1.0});
         material.SetTextureDefinition(ID_BASE_MAP, "TAI_Atlas_1A.tga");
@@ -68,6 +87,10 @@ void InitSceneMaterials(AssetManager& assets) {
 
         GL_InitMaterialProperties(material, assets);
     }
+}
+
+void LoadMeshes(AssetManager& assets) {
+
 
 }
 
@@ -85,7 +108,7 @@ void PlaceObjectsToScene(AssetManager& assets, GameScene& scene) {
         vec3 pos = {R, 0.5f, posZ};
         vec3 rot = {0.0f, 0.0f, 0.0f};
         vec3 scale = {1.0f, 1.0f, 1.0f};
-        Handle objHandle = scene.NewObject_CubeNamed("Cube RR", pos, rot, scale, assets.materialDefault3d);
+        Handle objHandle = scene.NewObject_SingleSubMesh("Cube RR", assets.meshCube ,pos, rot, scale, assets.materialDefault3d);
         scene.existingObjects.push_back(objHandle);
     }
     // cube RL
@@ -93,7 +116,7 @@ void PlaceObjectsToScene(AssetManager& assets, GameScene& scene) {
         vec3 pos = {L, 0.5f, posZ};
         vec3 rot = {0.0f, 0.0f, 0.0f};
         vec3 scale = {1.0f, 1.0f, 1.0f};
-        Handle objHandle = scene.NewObject_CubeNamed("Cube RL", pos, rot, scale, assets.materialDefault3d);
+        Handle objHandle = scene.NewObject_SingleSubMesh("Cube RL", assets.meshCube, pos, rot, scale, assets.materialDefault3d);
         scene.existingObjects.push_back(objHandle);
     }
     // Pyramid RL
@@ -102,7 +125,7 @@ void PlaceObjectsToScene(AssetManager& assets, GameScene& scene) {
         vec3 rot = {0.0f, 0.0f, 0.0f};
         vec3 scale = {1.0f, 1.0f, 1.0f};
 
-        Handle objHandle = scene.NewObject_Pyramid(pos, rot, scale, assets.materialDefault3d);
+        Handle objHandle = scene.NewObject_SingleSubMesh("", assets.meshPyramid, pos, rot, scale, assets.materialDefault3d);
         scene.existingObjects.push_back(objHandle);
     }
     // Pyramid RR
@@ -111,7 +134,7 @@ void PlaceObjectsToScene(AssetManager& assets, GameScene& scene) {
         vec3 rot = {0.0f, 0.0f, 0.0f};
         vec3 scale = {1.0f, 1.0f, 1.0f};
 
-        Handle objHandle = scene.NewObject_Pyramid(pos, rot, scale, assets.materialDefault3d);
+        Handle objHandle = scene.NewObject_SingleSubMesh("", assets.meshPyramid, pos, rot, scale, assets.materialDefault3d);
         scene.existingObjects.push_back(objHandle);
     }
 
@@ -121,7 +144,7 @@ void PlaceObjectsToScene(AssetManager& assets, GameScene& scene) {
         vec3 pos = {R, 0.5f, posZ};
         vec3 rot = {0.0f, 0.0f, 0.0f};
         vec3 scale = {1.0f, 2.0f, 1.0f};
-        Handle objHandle = scene.NewObject_CubeNamed("Cube FR", pos, rot, scale, assets.materialDefault3d);
+        Handle objHandle = scene.NewObject_SingleSubMesh("Cube FR", assets.meshCube, pos, rot, scale, assets.materialDefault3d);
         scene.existingObjects.push_back(objHandle);
     }
     // cube FL
@@ -129,7 +152,7 @@ void PlaceObjectsToScene(AssetManager& assets, GameScene& scene) {
         vec3 pos = {L, 1.0f, posZ};
         vec3 rot = {0.0f, 0.0f, 0.0f};
         vec3 scale = {1.0f, 2.0f, 1.0f};
-        Handle objHandle = scene.NewObject_CubeNamed("Cube FL", pos, rot, scale, assets.materialDefault3d);
+        Handle objHandle = scene.NewObject_SingleSubMesh("Cube FL", assets.meshCube, pos, rot, scale, h_mat_Metal);
         scene.existingObjects.push_back(objHandle);
     }
     // Sphere FR
@@ -137,7 +160,7 @@ void PlaceObjectsToScene(AssetManager& assets, GameScene& scene) {
         vec3 pos = {L, 2.5f, posZ};
         vec3 rot = {0.0f, 0.0f, 0.0f};
         vec3 scale = {1.0f, 1.0f, 1.0f};
-        Handle objHandle = scene.NewObject_SphereNamed("Sphere", pos, rot, scale, assets.materialDefault3d);
+        Handle objHandle = scene.NewObject_SingleSubMesh("Sphere", assets.meshSphere, pos, rot, scale, h_mat_Metal);
         scene.existingObjects.push_back(objHandle);
     }
     // Sphere FL
@@ -145,7 +168,7 @@ void PlaceObjectsToScene(AssetManager& assets, GameScene& scene) {
         vec3 pos = {R, 2.5f, posZ};
         vec3 rot = {0.0f, 0.0f, 0.0f};
         vec3 scale = {1.0f, 1.0f, 1.0f};
-        Handle objHandle = scene.NewObject_SphereNamed("Sphere", pos, rot, scale, assets.materialDefault3d);
+        Handle objHandle = scene.NewObject_SingleSubMesh("Sphere", assets.meshSphere, pos, rot, scale, assets.materialDefault3d);
         scene.existingObjects.push_back(objHandle);
     }
 
@@ -154,7 +177,7 @@ void PlaceObjectsToScene(AssetManager& assets, GameScene& scene) {
         vec3 pos = {0.0f, 1.0f, -3.5f};
         vec3 rot = {0.0f, 0.0f, 0.0f};
         vec3 scale = {1.0f, 1.0f, 1.0f};
-        Handle objHandle = scene.NewObject_Capsule(pos, rot, scale, assets.materialDefault3d);
+        Handle objHandle = scene.NewObject_SingleSubMesh("capsule", assets.meshCapsule, pos, rot, scale, assets.materialDefault3d);
         scene.existingObjects.push_back(objHandle);
     }
     // Table
@@ -163,7 +186,7 @@ void PlaceObjectsToScene(AssetManager& assets, GameScene& scene) {
         vec3 rot = {-90.0f, 0.0f, 0.0f};
         vec3 scale = {0.01f, 0.01f, 0.01f};
         std::vector<Handle> newHandles = {};
-        AssetManager::LoadModelsFromFbx("upd_picnic table.fbx", scene, newHandles);
+        assets.LoadModelsFromFbx("upd_picnic table.fbx", scene, newHandles);
 
         if (newHandles.empty()) {
             std::cerr << "Failed to load any objects!" << std::endl;
@@ -182,7 +205,7 @@ void PlaceObjectsToScene(AssetManager& assets, GameScene& scene) {
         const float sf = 0.01f;
         vec3 scale = {sf, sf, sf};
         std::vector<Handle> newHandles = {};
-        AssetManager::LoadModelsFromFbx("TAI_Tree_03A.fbx", scene, newHandles);
+        assets.LoadModelsFromFbx("TAI_Tree_03A.fbx", scene, newHandles);
 
         std::cout << "[SceneDef] TREE Loaded objects count: " << newHandles.size() << std::endl;
         if (newHandles.empty()) {
@@ -202,7 +225,7 @@ void PlaceObjectsToScene(AssetManager& assets, GameScene& scene) {
         const float sf = 0.01f;
         vec3 scale = {sf, sf, sf};
         std::vector<Handle> newHandles = {};
-        AssetManager::LoadModelsFromFbx("TAI_Tree_03A.fbx", scene, newHandles);
+        assets.LoadModelsFromFbx("TAI_Tree_03A.fbx", scene, newHandles);
 
         auto objIdx = 0;
         auto& mainRO = scene.renderObjects.GetItemRef(newHandles[objIdx]);
@@ -215,7 +238,7 @@ void PlaceObjectsToScene(AssetManager& assets, GameScene& scene) {
         vec3 pos = {0.0f, -0.01f, 0.0f};
         vec3 rot = {0.0f, 0.0f, 0.0f};
         vec3 scale = {32.0f, 1.0f, 32.0f};
-        Handle objHandle = scene.NewObject_PlaneNamed("FloorPlane", pos, rot, scale, h_mat_Floor);
+        Handle objHandle = scene.NewObject_SingleSubMesh("FloorPlane", assets.meshPlane, pos, rot, scale, h_mat_Floor);
         scene.existingObjects.push_back(objHandle);
     }
 }

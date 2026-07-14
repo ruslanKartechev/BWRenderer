@@ -22,6 +22,7 @@ static RenderTarget renderTarget = {};
 // Forward-declaration
 void RenderScreenTexture(const RenderTarget& target, Shader& quadShader);
 
+
 void GL_ResizeRenderTarget(i32 width, i32 height) {
     RenderTarget& target = renderTarget;
     glBindTexture(GL_TEXTURE_2D, target.colorTexture);
@@ -36,16 +37,26 @@ void GL_ResizeRenderTarget(i32 width, i32 height) {
     glViewport(0, 0, width, height);
 }
 
+void GL_InitMaterialParametersDefault3D(Material& material) {
+    material.shaderName = "Default3D";
+    const float shade = 0.96f;
+    material.SetVectorDefinition(ID_COLOR_TINT, {shade, shade, shade, 1.0});
+
+    material.SetFloatDefinition(ID_SMOOTHNESS, .25f);
+    material.SetFloatDefinition(ID_METALLIC, .25f);
+
+    material.SetTextureDefinition(ID_BASE_MAP, "default_white");
+    material.SetTextureDefinition(ID_NORMAL_MAP, "default_normal");
+    material.SetTextureDefinition(ID_SKYBOX_CUBEMAP, "Skybox");
+
+    material.SetVectorDefinition(ID_BASE_MAP_TO, {1.0f, 1.0f, 0.0f, 0.0f});
+}
+
 void GL_InitDefaultMaterials(AssetManager& assets) {
-    // Default 3d
+    // Default 3D
     {
         auto& material = assets.materials.GetNewObjectAndHandle(assets.materialDefault3d);
-        material.shaderName = "Default3D";
-        material.SetVectorDefinition(ID_COLOR_TINT, {0.95f, 0.95f, 0.95f, 1.0});
-        material.SetFloatDefinition(ID_SPECULAR_POWER, 16);
-        material.SetTextureDefinition(ID_BASE_MAP, "");
-        material.SetTextureDefinition(ID_NORMAL_MAP, "");
-        material.SetVectorDefinition(ID_BASE_MAP_TO, {1.0f, 1.0f, 0.0f, 0.0f});
+        GL_InitMaterialParametersDefault3D(material);
         GL_InitMaterialProperties(material, assets);
     }
     // Default 2d
@@ -60,6 +71,13 @@ void GL_InitDefaultMaterials(AssetManager& assets) {
         auto& material = assets.materials.GetNewObjectAndHandle(assets.materialDebug);
         material.shaderName = "DebugShader";
         GL_InitMaterialProperties(material, assets);
+    }
+    // Skybox
+    {
+        auto& material = assets.materials.GetNewObjectAndHandle(assets.materialSkybox);
+        material.shaderName = Shader_SkyboxDefault;
+        material.SetTextureDefinition(ID_SKYBOX_CUBEMAP, "Skybox");
+        material.SetFloatDefinition(ID_SKYBOX_BRIGHTNESS, 0.5f);
     }
 }
 
@@ -124,7 +142,7 @@ void GL_UpdateBackground(GameScene& scene) {
 
 void GL_InitMaterialProperties(Material& material, AssetManager& assets) {
     material.didInit = true;
-    std::cout << "[Graphics] Looking for shader " << material.shaderName << std::endl;
+    std::cout << "[Graphics][MaterialProperties] Shader: " << material.shaderName << std::endl;
     material.shaderHandle = assets.FindShaderByName(material.shaderName.c_str());
 
     if (material.shaderHandle.IsEmpty()) {
@@ -138,7 +156,7 @@ void GL_InitMaterialProperties(Material& material, AssetManager& assets) {
     for (auto i = 0; i < material.floatsDefinitions.size(); i++) {
         auto& paramName = material.floatsDefinitions[i].first;
         u32 uniformLocation = glGetUniformLocation(shaderId, paramName.c_str());
-        std::cout << "[Property Float] [shader " << shaderId << "] Name: " << paramName << ", uniformLocation: " << uniformLocation << std::endl;
+        std::cout << "Material.Float] [shader " << shaderId << "] Name: " << paramName << ", uniformLocation: " << uniformLocation << std::endl;
         material.floats.emplace_back(uniformLocation, material.floatsDefinitions[i].second);
     }
 
@@ -146,7 +164,7 @@ void GL_InitMaterialProperties(Material& material, AssetManager& assets) {
         auto& paramName = material.vectorsDefinitions[i].first;
 
         u32 uniformLocation = glGetUniformLocation(shaderId, paramName.c_str());
-        std::cout << "[Property Vector] [shader " << shaderId << "] Name: " << paramName << ", uniformLocation: " << uniformLocation << std::endl;
+        std::cout << "[Material.Vector] [shader " << shaderId << "] Name: " << paramName << ", uniformLocation: " << uniformLocation << std::endl;
 
         material.vectors.emplace_back(uniformLocation, material.vectorsDefinitions[i].second);
     }
@@ -174,9 +192,7 @@ void GL_InitMaterialProperties(Material& material, AssetManager& assets) {
         material.textures.emplace_back(uniformLocation, textureHandle);
 
         Texture& txt = assets.textures.GetItemRef(textureHandle);
-        printf("Texture handle: %d, Name: %s, Loaded: %d \n", txt.glHandle, txt.name, txt.isLoaded);
-        printf("[Property Texture] handle %d, %d \n",  textureHandle.index, textureHandle.generation);
-        std::cout << "[Property Texture] [shader " << shaderId << "] Param: " << paramName << " Asset: " << assetName << " uniformLocation: " << uniformLocation << std::endl;
+        std::cout << "[Material.Texture] [shader " << shaderId << "] Param: " << paramName << " Asset: " << assetName << " uniformLocation: " << uniformLocation << std::endl;
 
     }
     glUseProgram(0);
@@ -210,7 +226,7 @@ void GL_AllocateGraphicsSkybox(RenderSubMesh& obj) {
     glBindVertexArray(0);
 }
 
-void GL_AllocateGraphicsForObject(RenderObject& obj, GameScene& scene)
+void GL_AllocateGraphicsForObject(RenderObject& obj, AssetManager& assets)
 {
     obj.subMeshses.reserve(1);
     if (obj.subMeshses.size() < 1) {
@@ -218,7 +234,7 @@ void GL_AllocateGraphicsForObject(RenderObject& obj, GameScene& scene)
     }
     for (auto& meshRenderData : obj.subMeshses) {
 
-        Mesh& mesh = scene.meshes.GetItemRef(meshRenderData.hMesh);
+        Mesh& mesh = assets.meshes.GetItemRef(meshRenderData.hMesh);
 
         GLuint vao;
         GLuint vbo;
@@ -252,6 +268,11 @@ void GL_AllocateGraphicsForObject(RenderObject& obj, GameScene& scene)
         }
         if (mesh.startIndexColor >= 0) {
             glVertexAttribPointer(attributeIdx, 4, GL_FLOAT, GL_FALSE, stride, (const void*)(mesh.startIndexColor*sizeof(float))); // RGBA
+            glEnableVertexAttribArray(attributeIdx);
+            attributeIdx++;
+        }
+        if (mesh.startIndexTangents >= 0) { // Tangents
+            glVertexAttribPointer(attributeIdx, 3, GL_FLOAT, GL_FALSE, stride, (const void*)(mesh.startIndexColor*sizeof(float))); // RGBA
             glEnableVertexAttribArray(attributeIdx);
             attributeIdx++;
         }
@@ -358,7 +379,7 @@ void GL_ForwardRenderOpaques(GameScene& scene, Camera& camera, AssetManager& ass
             if (isNull) {
                 continue;
             }
-            Mesh& mesh = scene.meshes.GetItemRef(renderData.hMesh);
+            Mesh& mesh = assets.meshes.GetItemRef(renderData.hMesh);
             auto shaderId = shader.GetShaderId();
             glUseProgram(shaderId);
 
@@ -391,7 +412,8 @@ void GL_ForwardRenderOpaques(GameScene& scene, Camera& camera, AssetManager& ass
                     continue;
                 }
                 glActiveTexture(GL_TEXTURE0 + textureNumber);
-                glBindTexture(GL_TEXTURE_2D, texture.glHandle);
+                auto format = texture.pixelFormat == 0 ? GL_TEXTURE_2D : GL_TEXTURE_CUBE_MAP;
+                glBindTexture(format, texture.glHandle);
                 glUniform1i(texParamName, textureNumber);
                 textureNumber++;
               //  if (DBG_LVL < MAX_DBG) {

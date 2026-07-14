@@ -12,7 +12,6 @@ class GameScene {
     public:
     std::vector<Handle> existingObjects = {};
 
-    SlotMap<Mesh> meshes = SlotMap<Mesh>();
     SlotMap<Transform> transforms = SlotMap<Transform>();
     SlotMap<RenderObject> renderObjects = SlotMap<RenderObject>();
 
@@ -36,23 +35,5 @@ class GameScene {
      * @return handle to the new RenderObject
      */
     Handle NewObject_SingleSubMesh(const char* name, Handle hMesh, vec3 position, vec3 rotation, vec3 scale, Handle shaderHandle);
-
-    Handle NewObject_CubeNamed(const char* name, vec3 position, vec3 rotation, vec3 scale, Handle shaderHandle);
-    Handle NewObject_Cube(vec3 position, vec3 rotation, vec3 scale, Handle shaderHandle);
-
-    Handle NewObject_SphereNamed(const char* name, vec3 position, vec3 rotation, vec3 scale, Handle shaderHandle);
-    Handle NewObject_Sphere(vec3 position, vec3 rotation, vec3 scale, Handle shaderHandle);
-
-    Handle NewObject_PyramidNamed(const char* name, vec3 position, vec3 rotation, vec3 scale, Handle shaderHandle);
-    Handle NewObject_Pyramid(vec3 position, vec3 rotation, vec3 scale, Handle shaderHandle);
-
-    Handle NewObject_CapsuleNamed(const char* name, vec3 position, vec3 rotation, vec3 scale, Handle shaderHandle);
-    Handle NewObject_Capsule(vec3 position, vec3 rotation, vec3 scale, Handle shaderHandle);
-
-    Handle NewObject_PlaneNamed(const char* name, vec3 position, vec3 rotation, vec3 scale, Handle shaderHandle);
-    Handle NewObject_Plane(vec3 position, vec3 rotation, vec3 scale, Handle shaderHandle);
-
-    Handle NewObject_CutConeNamed(const char* name, vec3 position, vec3 rotation, vec3 scale, Handle shaderHandle);
-    Handle NewObject_CutCone(vec3 position, vec3 rotation, vec3 scale, Handle shaderHandle);
 
 };

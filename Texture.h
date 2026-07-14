@@ -4,14 +4,14 @@
 
 class Texture {
 public:
-    i32 width;
-    i32 height;
-    i32 channels;
-    i32 pixelFormat;
-    u32 glHandle;
-    bool isLoaded;
-    const char* name;
-    unsigned char* pixels;
+    i32 width = 0;
+    i32 height = 0;
+    i32 channels = 0;
+    i32 pixelFormat = 0;
+    u32 glHandle = 0;
+    bool isLoaded = false;
+    const char* name = "";
+    unsigned char* pixels = nullptr;
 
 
     bool UploadToGL(bool freeResource = true);

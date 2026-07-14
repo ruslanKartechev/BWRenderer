@@ -77,6 +77,7 @@ void ParseAssimpMesh(const aiMesh& ai_mesh, Mesh& out_mesh) {
     out_mesh.startIndexUV = -1;
     out_mesh.startIndexNormals = -1;
     out_mesh.startIndexColor = -1;
+    out_mesh.startIndexTangents = -1;
     if(ai_mesh.HasTextureCoords(0)) {
         out_mesh.startIndexUV = stride;
         stride += 2;
@@ -89,8 +90,12 @@ void ParseAssimpMesh(const aiMesh& ai_mesh, Mesh& out_mesh) {
         out_mesh.startIndexColor = stride;
         stride += 4;
     }
+    if(ai_mesh.HasTangentsAndBitangents()) {
+        out_mesh.startIndexTangents = stride;
+        stride += 3;
+    }
     out_mesh.stride = stride;
-    out_mesh.vertexDataCount = ai_mesh.mNumVertices * stride;
+    out_mesh.vertexDataCount = static_cast<i32>(ai_mesh.mNumVertices) * stride;
     out_mesh.vertexData = new float[out_mesh.vertexDataCount];
     int offset = 0;
     for(unsigned int i = 0; i < ai_mesh.mNumVertices; i++) {
@@ -112,22 +117,28 @@ void ParseAssimpMesh(const aiMesh& ai_mesh, Mesh& out_mesh) {
             out_mesh.vertexData[offset++] = ai_mesh.mColors[0][i].b;
             out_mesh.vertexData[offset++] = ai_mesh.mColors[0][i].a;
         }
+        if (out_mesh.startIndexTangents != -1) {
+            out_mesh.vertexData[offset++] = ai_mesh.mTangents[i].x;
+            out_mesh.vertexData[offset++] = ai_mesh.mTangents[i].y;
+            out_mesh.vertexData[offset++] = ai_mesh.mTangents[i].z;
+        }
     }
-    out_mesh.indexCount = ai_mesh.mNumFaces * 3;
+    out_mesh.indexCount = static_cast<i32>(ai_mesh.mNumFaces * 3);
     out_mesh.indexData = new int[out_mesh.indexCount];
     int idxOffset = 0;
-    for(unsigned int i = 0; i < ai_mesh.mNumFaces; i++) {
+
+    for(u32 i = 0; i < ai_mesh.mNumFaces; i++) {
+
         const aiFace& face = ai_mesh.mFaces[i];
-        for(unsigned int j = 0; j < face.mNumIndices; j++) {
+        for(u32 j = 0; j < face.mNumIndices; j++) {
             out_mesh.indexData[idxOffset++] = face.mIndices[j];
         }
     }
 }
 
 
-Handle ParseIntoRenderObject(aiNode* node, const aiScene& aiScene, GameScene& gameScene) {
-
-    Handle objHandle;
+Handle AssetManager::ParseIntoRenderObject(aiNode* node, const aiScene& aiScene, GameScene& gameScene) {
+    Handle objHandle {0,0};
     RenderObject& renderObject = gameScene.renderObjects.GetNewObjectAndHandle(objHandle);
     Transform& objTransform = gameScene.transforms.GetNewObjectAndHandle(renderObject.hTransform);
     Transform_Init(objTransform);
@@ -144,9 +155,9 @@ Handle ParseIntoRenderObject(aiNode* node, const aiScene& aiScene, GameScene& ga
         }
         aiMesh& aiMesh = *aiScene.mMeshes[idx];
 
-
         Handle hMesh = {0,0};
-        Mesh& gameMesh = gameScene.meshes.GetNewObjectAndHandle(hMesh);
+        Mesh& gameMesh = meshes.GetNewObjectAndHandle(hMesh);
+        gameMesh.name = std::string(aiMesh.mName.C_Str());
         ParseAssimpMesh(aiMesh, gameMesh);
 
         renderMeshCount++;
@@ -160,26 +171,26 @@ Handle ParseIntoRenderObject(aiNode* node, const aiScene& aiScene, GameScene& ga
 }
 
 /// Parses the first non-empty mesh only
-bool ParseSceneRecursive(aiNode* node, const aiScene& aiScene, GameScene& gameScene, std::vector<Handle>& renderObjects) {
+bool AssetManager::ParseSceneRecursive(aiNode* node, const aiScene& aiScene, GameScene& gameScene, std::vector<Handle>& newHandles) {
     if(node->mNumMeshes > 0) {
         Handle newObjHandle = ParseIntoRenderObject(node, aiScene, gameScene);
-        renderObjects.push_back(newObjHandle);
-        // if (rootHandle.index == 0 && rootHandle.generation == 0) {
-        //     rootHandle.generation = newObjHandle.generation;
-        //     rootHandle.index = newObjHandle.index;
-        // }
+        newHandles.push_back(newObjHandle);
     }
     for (size_t i = 0; i < node->mNumChildren; i++) {
-        ParseSceneRecursive(node->mChildren[i], aiScene, gameScene, renderObjects);
+        ParseSceneRecursive(node->mChildren[i], aiScene, gameScene, newHandles);
     }
     return true;
 }
 
 
-int AssetManager::LoadModelsFromFbx(const char* path, GameScene& gameScene, std::vector<Handle>& objectsHandles){
+int AssetManager::LoadMeshesFromFBX(const char* path, GameScene& gameScene, std::vector<Handle>& newMeshHandles){
     auto filePath = GetGlobalPathModel(path);
     Assimp::Importer importer;
-    const aiScene* scene = importer.ReadFile(filePath, aiProcess_Triangulate | aiProcess_FlipUVs | aiProcess_GenSmoothNormals);
+    const aiScene* scene = importer.ReadFile(filePath, aiProcess_Triangulate
+        | aiProcess_FlipUVs
+        | aiProcess_GenSmoothNormals
+        | aiProcess_CalcTangentSpace);
+
     if (scene == nullptr) {
         std::cerr << "FAILED TO LOAD SCENE" << std::endl;
         return 1;
@@ -188,7 +199,28 @@ int AssetManager::LoadModelsFromFbx(const char* path, GameScene& gameScene, std:
         std::cerr << "The root node is null!" << std::endl;
         return 2;
     }
+    ParseSceneRecursive(scene->mRootNode, *scene, gameScene, newMeshHandles);
+    return 0;
+}
 
+
+
+int AssetManager::LoadModelsFromFbx(const char *path, GameScene &gameScene, std::vector<Handle> &objectsHandles) {
+    auto filePath = GetGlobalPathModel(path);
+    Assimp::Importer importer;
+    const aiScene *scene = importer.ReadFile(filePath, aiProcess_Triangulate
+                                                       | aiProcess_FlipUVs
+                                                       | aiProcess_GenSmoothNormals
+                                                       | aiProcess_CalcTangentSpace);
+
+    if (scene == nullptr) {
+        std::cerr << "FAILED TO LOAD SCENE" << std::endl;
+        return 1;
+    }
+    if (scene->mRootNode == nullptr) {
+        std::cerr << "The root node is null!" << std::endl;
+        return 2;
+    }
     ParseSceneRecursive(scene->mRootNode, *scene, gameScene, objectsHandles);
     return 0;
 }
@@ -324,16 +356,38 @@ bool AssetManager::LoadTextureCubemap(Texture& texture, std::vector<std::string>
 
 
 
+void AssetManager::CreateDefaultNormalMap() {
+    constexpr i32 dim = 4 ;
+    constexpr i32 size = dim * dim;
+    u8 pixels[4 * size];
+    std::memset(pixels, 255, sizeof(pixels)); // Is this correct
+    for (size_t i = 0; i < size; i++) {
+        pixels[i * 4 + 0] = 128; // x
+        pixels[i * 4 + 1] = 128; // y
+        pixels[i * 4 + 2] = 255; // z
+        pixels[i * 4 + 3] = 255; // a
+    }
+
+    Texture& texture = GetNewTextureObject(defaultNormal);
+    texture.pixels = pixels;
+    texture.name = "default_normal";
+    texture.width = dim;
+    texture.height = dim;
+
+    texture.isLoaded = true;
+    texture.UploadToGL(false);
+}
+
 void AssetManager::CreateDefaultWhiteTexture() {
 
     constexpr i32 dim = 4 ;
     constexpr i32 size = dim * dim;
-    u8 whitePixels[4 * size];
-    std::memset(whitePixels, 255, sizeof(whitePixels)); // Is this correct
+    u8 pixels[4 * size];
+    std::memset(pixels, 255, sizeof(pixels)); // Is this correct
 
     Texture& texture = GetNewTextureObject(defaultWhiteTexture);
-    texture.pixels = whitePixels;
-    texture.name = "white";
+    texture.pixels = pixels;
+    texture.name = "default_white";
     texture.width = dim;
     texture.height = dim;
 
@@ -360,7 +414,7 @@ Handle AssetManager::FindTextureByName(const char* name) {
         }
         idx++;
     }
-    std::cout << "[AssetsSearch] Failed to FIND matching texture!" << std::endl;
+    std::cerr << "[Assets] 404 Shader by texture: " << name << std::endl;
     return Handle(0,0);
 }
 
@@ -368,16 +422,28 @@ Handle AssetManager::FindTextureByName(const char* name) {
 Handle AssetManager::FindShaderByName(const char* name) {
     auto& vec = shaders.GetVector();
     i32 idx = 0;
-    // std::cout << "shaders count : " << vec.size() << std::endl;
     for (auto& obj : vec) {
-        // std::cout << "[search] " << obj.GetName() << " " << idx << std::endl;
         if (std::strncmp(obj.GetName().c_str(), name, MAX_STRCMP_ITERATIONS) == 0) {
             return Handle(idx, shaders.GetGenerationFor(idx));
         }
         idx++;
     }
-    std::cerr << "[Assets] Failed to FIND matching shader!" << std::endl;
+    std::cerr << "[Assets] 404 Shader by name: " << name << std::endl;
     return Handle(0,0);
 }
 
+
+Handle AssetManager::FindMeshByName(const char* name)
+{
+    auto& vec = meshes.GetVector();
+    i32 idx = 0;
+    for (auto& obj : vec) {
+        if (std::strncmp(obj.name.c_str(), name, MAX_STRCMP_ITERATIONS) == 0) {
+            return Handle(idx, meshes.GetGenerationFor(idx));
+        }
+        idx++;
+    }
+    std::cerr << "[Assets] 404 Mesh by name: " << name << std::endl;
+    return Handle(0,0);
+}
 // endregion

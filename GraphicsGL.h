@@ -21,10 +21,12 @@ void GL_ForwardRenderOpaques(GameScene& scene, Camera& camera, AssetManager& ass
 
 void GL_ForwardRenderTransparent(GameScene& scene, Camera& camera, AssetManager& assets, ProjectSettings& settings);
 
-void GL_AllocateGraphicsForObject(RenderObject& obj, GameScene& scene);
+void GL_AllocateGraphicsForObject(RenderObject& obj, AssetManager& assets);
 
 void GL_InitMaterialProperties(Material& material, AssetManager& assets);
 
 void GL_InitDefaultMaterials(AssetManager& assets);
+
+void GL_InitMaterialParametersDefault3D(Material& material);
 
 void GL_RenderSkybox(GameScene& scene, AssetManager& assets);

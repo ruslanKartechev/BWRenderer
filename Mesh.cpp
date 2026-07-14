@@ -1,7 +1,7 @@
 #include "Mesh.h"
 #include <cmath>
 
-void ClearMesh(Mesh& mesh) {
+void Mesh_Clear(Mesh& mesh) {
     if (mesh.vertexData) {
         delete[] mesh.vertexData;
         mesh.vertexData = nullptr;
@@ -44,6 +44,7 @@ void Mesh_DefaultSphere(Mesh& mesh) {
             mesh.vertexData[vIdx++] = nx;
             mesh.vertexData[vIdx++] = ny;
             mesh.vertexData[vIdx++] = nz;
+
         }
     }
     int iIdx = 0;

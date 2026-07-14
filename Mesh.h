@@ -1,11 +1,10 @@
 #pragma once
-#include "SlotsMap.h"
-#include "glad/glad.h"
-
+#include <string>
 
 typedef struct Mesh{
     float* vertexData = nullptr;
     int* indexData = nullptr;
+    std::string name = {};
 
     int vertexDataCount;
     int indexCount;
@@ -14,6 +13,8 @@ typedef struct Mesh{
     int startIndexUV = 0;
     int startIndexColor = 0;
     int startIndexNormals = 0;
+    int startIndexTangents = 0;
+
 
 } Mesh;
 
@@ -27,6 +28,6 @@ void Mesh_DefaultQuad(Mesh& mesh);
 void Mesh_DefaultDonut(Mesh& mesh);
 void Mesh_DefaultPyramid(Mesh& mesh);
 void Mesh_DefaultCube(Mesh& mesh);
-void ClearMesh(Mesh& mesh);
+void Mesh_Clear(Mesh& mesh);
 
 void Mesh_DefaultCutCone(Mesh& mesh);
