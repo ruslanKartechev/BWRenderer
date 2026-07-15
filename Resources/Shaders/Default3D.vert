@@ -6,7 +6,7 @@ layout (location = 2) in vec3 normal;
 layout (location = 3) in vec3 tangent;
 
 out vec4 out_vertColor;
-out vec2 out_uv;
+out vec2 v_uv;
 out vec3 out_normal;
 out mat3 out_TBN;
 out vec3 FragPos;
@@ -14,6 +14,7 @@ out vec3 FragPos;
 uniform mat4 MATRIX_MODEL;
 uniform mat4 MATRIX_VIEW;
 uniform mat4 MATRIX_PROJECTION;
+
 uniform float GLOBAL_TIME;
 uniform vec4 _COLOR_TINT;
 uniform sampler2D _BASE_MAP;
@@ -23,7 +24,7 @@ void main(){
     FragPos = (MATRIX_MODEL * vec4(position, 1.0)).xyz;
     mat3 normalMatrix = mat3(transpose(inverse(MATRIX_MODEL)));
     out_normal = normalize(normalMatrix * normal);
-    out_uv = uv;
+    v_uv = uv;
     out_vertColor = vec4(_COLOR_TINT.xyz, 1);
 
     vec3 T = normalize(vec3(MATRIX_MODEL * vec4(tangent, 0.0)));

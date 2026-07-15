@@ -1,6 +1,8 @@
 #version 330 core
 
-out vec4 FragColor;
+layout(location = 0) out vec4 FragColor;
+layout(location = 1) out vec4 FragNormal;
+layout(location = 2) out vec2 FragReflection;
 
 struct Light{
     vec3 direction;
@@ -9,13 +11,15 @@ struct Light{
 };
 
 in vec4 out_vertColor;
-in vec2 out_uv;
+in vec2 v_uv;
 in vec3 out_normal;
 in mat3 out_TBN;
+
 in vec3 FragPos;
 
 uniform float _METALLIC;
 uniform float _SMOOTHNESS;
+uniform float _SSR_POWER;
 
 uniform Light DIRECTIONAL_LIGHT;
 uniform vec4 _BASE_MAP_TO;
@@ -29,7 +33,7 @@ uniform samplerCube _SKYBOX;
 
 
 void main(){
-    vec2 uv = (out_uv * _BASE_MAP_TO.xy) + _BASE_MAP_TO.zw;
+    vec2 uv = (v_uv * _BASE_MAP_TO.xy) + _BASE_MAP_TO.zw;
     vec4 texColor = texture(_BASE_MAP, uv) * out_vertColor;
 //    vec3 normal = normalize(out_normal);
     vec3 normal =  texture(_NORMAL_MAP, uv).xyz;
@@ -42,7 +46,7 @@ void main(){
     vec3 diffCol = texColor.xyz * (1.0 - _METALLIC);
     vec3 diffuseLight = max(dot(normal, invLightDir), 0.0) * diffCol * lightColor;
     // Specular color
-    vec3 f0 =  mix(vec3(0.04), texColor.xyz, _METALLIC);
+    vec3 f0 = mix(vec3(0.04), texColor.xyz, _METALLIC);
     vec3 viewDir = normalize(VIEW_POS - FragPos);
     vec3 halfway = normalize(viewDir + invLightDir);
     float specP = max(dot(normal, halfway), 0.0); // Blinn model
@@ -58,5 +62,8 @@ void main(){
     vec3 ambient = _AMBIENT_LIGHT_COLOR * _AMBIENT_LIGHT_INTENSITY;
     vec3 finalColor = ambient + environmentSpecular + specularColor + diffuseLight;
     FragColor = vec4(finalColor, 1.0);
+
+    FragNormal = vec4(normal, _SSR_POWER);
+    FragReflection = vec2(_SMOOTHNESS, _METALLIC);
 
 }

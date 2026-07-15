@@ -32,10 +32,17 @@ Shader::Shader(const char* shaderName) : m_ShaderID(0), m_isCompiled(false), m_h
     SetName(shaderName);
 }
 
-void Shader::SetName(const char* shaderName) {
+void Shader::SetName(const char* shaderName, bool pathFromName) {
     m_name = shaderName;
     GetVertexFragmentPath(shaderName, m_vertexPath,  m_fragmentPath);
 }
+
+void Shader::SetNameSeparate(const char* shaderName, const char* vertex, const char* fragment) {
+    m_name = shaderName;
+    m_vertexPath = ProjectSettings::ResourcesPath  + "/Shaders/" + std::string(vertex) + ".vert";
+    m_fragmentPath = ProjectSettings::ResourcesPath  + "/Shaders/" + std::string(fragment) + ".frag";
+}
+
 
 
 Shader::Shader(const char* vertPath, const char* fragPath)

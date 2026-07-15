@@ -74,7 +74,6 @@ void AddDebugGeometryForLights(GameScene& scene, AssetManager& assets) {
 
 
 void LogHandle(const char* msg, const Handle& handle) {
-
     printf(msg);
     printf(" Handle(%d, %d)\n", handle.index, handle.generation);
 }
@@ -83,13 +82,15 @@ void LogHandle(const char* msg, const Handle& handle) {
 void InitBackground(FrameBufferUI& fbBackground) {
     // actual background quad with UV and Color
     float vertexData[32] = {
-        // x,  y,       u,    v,     r,      g,      b,      a
+        // x,  y,       u,    v,     r,    g,    b,    a
         -1.0f, -1.0f,   0.0f, 0.0f,  1.0f, 0.0f, 0.0f, 1.0f,
         -1.0f, +1.0f,   0.0f, 1.0f,  0.0f, 1.0f, 0.0f, 1.0f,
         +1.0f, +1.0f,   1.0f, 1.0f,  0.0f, 0.0f, 1.0f, 1.0f,
         +1.0f, -1.0f,   0.0f, 1.0f,  0.0f, 0.0f, 0.0f, 1.0f,
     };
+
     constexpr int startIdxCount = 6;
+
     unsigned int indices[startIdxCount] = {
         0, 2, 1, // Trig 1
         0, 3, 2  // Trig 2
@@ -139,46 +140,87 @@ void InitSkybox(Skybox& skyBox) {
 }
 
 
-void LoadDefaultShaders(Engine& engine) {
+void LoadShaders(Engine& engine) {
 
-    Shader& default3D = engine.assetManager.shaders.GetNewObjectAndHandle(engine.assetManager.shaderDefault3D);
-    Shader& default2D = engine.assetManager.shaders.GetNewObjectAndHandle(engine.assetManager.shaderDefault2D);
-    Shader& debugShader = engine.assetManager.shaders.GetNewObjectAndHandle(engine.assetManager.shaderLightDebug);
-    Shader& defaultSkybox = engine.assetManager.shaders.GetNewObjectAndHandle(engine.assetManager.shaderDefaultSkybox);
-    Shader& renderTexture = engine.assetManager.shaders.GetNewObjectAndHandle(engine.assetManager.shaderScreenRenderTexture);
+    auto& assets = engine.assetManager;
+    // default shaders
+    Shader& default3D = assets.shaders.GetNewObjectAndHandle(assets.shaderDefault3D);
+    Shader& default2D = assets.shaders.GetNewObjectAndHandle(assets.shaderDefault2D);
+    Shader& debugShader = assets.shaders.GetNewObjectAndHandle(assets.shaderLightDebug);
+    Shader& defaultSkybox = assets.shaders.GetNewObjectAndHandle(assets.shaderDefaultSkybox);
+    Shader& renderTexture = assets.shaders.GetNewObjectAndHandle(assets.shaderScreenRenderTexture);
+    // Dev staff
+    Shader& depthOnly = assets.shaders.GetNewObjectAndHandle(assets.shaderDepthOnly);
+    Shader& normalsOnly = assets.shaders.GetNewObjectAndHandle(assets.shaderNormalsOnly);
+    Shader& colorOnly = assets.shaders.GetNewObjectAndHandle(assets.shaderColorOnly);
+
+    // post process shader
+    Shader& ssrShader = assets.shaders.GetNewObjectAndHandle(assets.shaderSSR);
+    Shader& bloomExtract = assets.shaders.GetNewObjectAndHandle(assets.shaderBloomExtract);
+    Shader& bloomBlur = assets.shaders.GetNewObjectAndHandle(assets.shaderBloomBlur);
+    Shader& bloomFinal = assets.shaders.GetNewObjectAndHandle(assets.shaderBloomFinal);
 
     // Assign names
-    default3D.SetName("Default3D");
-    default2D.SetName("Default2D");
-    debugShader.SetName("DebugShader");
+    default3D.SetName(Shader_Default);
+    default2D.SetName(Shader_Default2D);
+    debugShader.SetName(Shader_Debug);
     defaultSkybox.SetName(Shader_SkyboxDefault);
-    renderTexture.SetName("ScreenRenderTexture");
+    renderTexture.SetName(Shader_ScreenRender);
+    ssrShader.SetNameSeparate("SSR", "ScreenRenderTexture", "PostProcess/SSR");
+    bloomExtract.SetNameSeparate("BloomExtract", "ScreenRenderTexture", "PostProcess/bloomExtract");
+    bloomBlur.SetNameSeparate("BloomBlur", "ScreenRenderTexture", "PostProcess/bloomBlur");
+    bloomFinal.SetNameSeparate("BloomFinal", "ScreenRenderTexture", "PostProcess/bloomFinal");
+
+    depthOnly.SetNameSeparate("DepthOnly", "ScreenRenderTexture", "Dev/DepthOnly");
+    normalsOnly.SetNameSeparate("NormalsOnly", "ScreenRenderTexture", "Dev/DepthOnly");
+    colorOnly.SetNameSeparate("ColorsOnly", "ScreenRenderTexture", "Dev/DepthOnly");
+
+    bool allCompiled = true;
     // Actually compile them
-    default3D.LoadAndCompile();
-    default2D.LoadAndCompile();
-    debugShader.LoadAndCompile();
-    defaultSkybox.LoadAndCompile();
-    renderTexture.LoadAndCompile();
+    allCompiled |= default3D.LoadAndCompile() == 0;
+    allCompiled |= default2D.LoadAndCompile() == 0;
+    allCompiled |= debugShader.LoadAndCompile() == 0;
+    allCompiled |= defaultSkybox.LoadAndCompile() == 0;
+    allCompiled |= renderTexture.LoadAndCompile() == 0;
+    allCompiled |= ssrShader.LoadAndCompile() == 0;
+    allCompiled |= bloomExtract.LoadAndCompile() == 0;
+    allCompiled |= bloomBlur.LoadAndCompile() == 0;
+    allCompiled |= bloomFinal.LoadAndCompile() == 0;
+
+    allCompiled |= depthOnly.LoadAndCompile() == 0;
+    allCompiled |= normalsOnly.LoadAndCompile() == 0;
+    allCompiled |= colorOnly.LoadAndCompile() == 0;
+
 #ifdef LOG_DEFAULT_SHADER_COMP
     std::cout << "[shader] compiled " << default3D.GetName() << " " << default3D.GetShaderId() << std::endl;
     std::cout << "[shader] compiled " << default2D.GetName() << " " << default2D.GetShaderId() << std::endl;
     std::cout << "[shader] compiled " << debugShader.GetName() << " " << debugShader.GetShaderId() << std::endl;
     std::cout << "[shader] compiled " << defaultSkybox.GetName() << " " << defaultSkybox.GetShaderId() << std::endl;
+
+    std::cout << "[shader] compiled " << ssrShader.GetName() << " " << ssrShader.GetShaderId() << std::endl;
+    std::cout << "[shader] compiled " << bloomExtract.GetName() << " " << bloomExtract.GetShaderId() << std::endl;
+    std::cout << "[shader] compiled " << bloomBlur.GetName() << " " << bloomBlur.GetShaderId() << std::endl;
+    std::cout << "[shader] compiled " << bloomFinal.GetName() << " " << bloomFinal.GetShaderId() << std::endl;
+
+    //std::cout << "[shader] compiled " << bloomShader.GetName() << " " << bloomShader.GetShaderId() << std::endl;
+    //std::cout << "[shader] compiled " << blurShader.GetName() << " " << blurShader.GetShaderId() << std::endl;
+    //std::cout << "[shader] compiled " << colorShader.GetName() << " " << colorShader.GetShaderId() << std::endl;
 #endif
 
-    default3D.SetAcceptsLighting(true);
+    assert(allCompiled);
 
+
+    default3D.SetAcceptsLighting(true);
     engine.shaderWatcher.WatchShader(default3D);
     engine.shaderWatcher.WatchShader(default2D);
     engine.shaderWatcher.WatchShader(debugShader);
     engine.shaderWatcher.WatchShader(defaultSkybox);
     engine.shaderWatcher.WatchShader(renderTexture);
 
-
-    // NEW SHADERS
+    // Additional shaders
     {
         Handle h {};
-        Shader& treeShader = engine.assetManager.shaders.GetNewObjectAndHandle(h);
+        Shader& treeShader = assets.shaders.GetNewObjectAndHandle(h);
         treeShader.SetName("Tree");
         treeShader.LoadAndCompile();
         treeShader.SetAcceptsLighting(true);
@@ -221,6 +263,11 @@ void LoadDefaultMeshes() {
         Mesh& mesh = assets.meshes.GetNewObjectAndHandle(assets.meshCube);
         Mesh_DefaultCube(mesh);
         mesh.name = MESH_CUBE;
+    }
+    {
+        Mesh& mesh = assets.meshes.GetNewObjectAndHandle(assets.meshSphere);
+        Mesh_DefaultSphere(mesh);
+        mesh.name = MESH_SPHERE;
     }
     {
         Mesh& mesh = assets.meshes.GetNewObjectAndHandle(assets.meshCapsule);
@@ -294,7 +341,6 @@ void RenderLoop() {
 
     UpdateSceneTransforms(eng.scene);
     StartFrame();
-    GL_UpdateBackground(eng.scene);
     GL_RenderScene(eng);
 
     RenderUI();
@@ -358,11 +404,39 @@ void ControlCamera() {
 }
 
 void ControlSettings() {
-
-    if (Input_IsKeyDown(GameInputKey::KEY_G)) {
-        EnginePtr->settings.Gamma_Correction  = !EnginePtr->settings.Gamma_Correction;
-        std::cout << "[GammaCorrection]: " << EnginePtr->settings.Gamma_Correction << std::endl;
+    auto& settings = EnginePtr->settings;
+    if (Input_IsKeyDown(GameInputKey::KEY_1)) {
+        settings.UseGammaCorrection  = !settings.UseGammaCorrection;
+        std::cout << "[GammaCorrection]: " << settings.UseGammaCorrection << std::endl;
     }
+    if (Input_IsKeyDown(GameInputKey::KEY_2)) {
+        settings.DevRenderDepths  = !settings.DevRenderDepths;
+        std::cout << "[Dev Depths Only]: " << settings.DevRenderDepths << std::endl;
+    }
+    if (Input_IsKeyDown(GameInputKey::KEY_3)) {
+        settings.DevRenderNormals  = !settings.DevRenderNormals;
+        std::cout << "[Dev Normals Only]: " << settings.DevRenderNormals << std::endl;
+    }
+
+    if (Input_IsKeyDown(GameInputKey::KEY_J)) {
+        settings.RenderSkyBox  = !settings.RenderSkyBox;
+        std::cout << "[Render Skybox]: " << settings.RenderSkyBox << std::endl;
+    }
+    if (Input_IsKeyDown(GameInputKey::KEY_K)) {
+        settings.RenderShadows  = !settings.RenderShadows;
+        std::cout << "[Render Shadows]: " << settings.RenderShadows << std::endl;
+    }
+    if (Input_IsKeyDown(GameInputKey::KEY_L)) {
+        settings.PostProcess  = !settings.PostProcess;
+        std::cout << "[Render PostProcess]: " << settings.PostProcess << std::endl;
+    }
+    if (Input_IsKeyDown(GameInputKey::KEY_B)) {
+        settings.PostProcess_Bloom  = !settings.PostProcess_Bloom;
+        std::cout << "[Render PostProcess_Bloom]: " << settings.PostProcess_Bloom << std::endl;
+    }
+
+
+
 }
 
 void ControlsLoop() {
@@ -422,7 +496,7 @@ void InitDefaults() {
     Time_SetTargetFrameRate(60);
     GL_InitGraphics(mainWin.width, mainWin.height);
 
-    LoadDefaultShaders(engine);
+    LoadShaders(engine);
     LoadDefaultMeshes();
     LoadDefaultTextures();
 

@@ -18,11 +18,27 @@ public:
     float Camera_Move_Speed;
     float Camera_Rotation_Speed;
 
-    bool Gamma_Correction;
-    bool Shadows;
-    bool Debug_Light_View;
-    bool Debug_UVs;
+    float BloomExposure = 1.2f;
+    float BloomThreshold = 0.5f;
+
+    bool UseGammaCorrection;
+    bool RenderShadows;
     bool RenderSkyBox;
+    bool PostProcess;
+
+    bool PostProcess_SSR;
+    bool PostProcess_Bloom;
+    bool PostProcess_DOF;
+    bool PostProcess_SSAO;
+    bool PostProcess_ToneMapping;
+    bool PostProcess_BW;
+
+    bool DebugVisualizeLightSources;
+
+    bool DevRenderUvs;
+    bool DevRenderDepths;
+    bool DevRenderNormals;
+    bool DevRenderColors;
 
     static bool LoadProjectSettings(const std::string& filePath, ProjectSettings& outSettings);
 

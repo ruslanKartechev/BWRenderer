@@ -1,11 +1,11 @@
 #pragma once
 #include <string>
-#include "Shader.h"
 #include "Material.h"
 #include "Texture.h"
 #include "Handle.h"
 #include "GameScene.h"
 #include "assimp/assimp/scene.h"
+#include "Shader.h"
 
 class AssetManager {
 public:
@@ -17,6 +17,20 @@ public:
     Handle shaderFallback;
     Handle shaderLightDebug;
     Handle shaderScreenRenderTexture;
+    // Dev
+    Handle shaderDepthOnly;
+    Handle shaderNormalsOnly;
+    Handle shaderColorOnly;
+
+    // Post Process Shaders
+    Handle shaderSSR;
+    Handle shaderBloomExtract;
+    Handle shaderBloomBlur;
+    Handle shaderBloomFinal;
+
+    Handle shaderBlur;
+    Handle shaderColorCorrection;
+
 
     // Default Materials
     Handle materialDebug;
@@ -60,7 +74,7 @@ public:
 
     int LoadModelsFromFbx(const char* path, GameScene& gameScene, std::vector<Handle>& objectsHandles);
 
-    int LoadMeshesFromFBX(const char* path, GameScene& gameScene, std::vector<Handle>& newMeshHandles);
+    int LoadDefinitions(const char* path, std::vector<ObjectDefinition>& newMeshHandles);
 
     /**
      * @param texture reference to a pre-allocated texture Object
@@ -84,6 +98,8 @@ public:
     Shader& GetFallback();
     Shader& GetScreenRenderTextureShader();
     Shader& GetShader(Handle h);
+    Shader& GetShaderSSR();
+    Shader& GetShaderBloom();
 
     Handle FindTextureByName(const char* name);
 
@@ -92,9 +108,11 @@ public:
     Handle FindMeshByName(const char* name);
 
 private:
-    Handle ParseIntoRenderObject(aiNode* node, const aiScene& aiScene, GameScene& gameScene);
-    bool ParseSceneRecursive(aiNode* node, const aiScene& aiScene, GameScene& gameScene, std::vector<Handle>& newHandles);
+    Handle ParseIntoRenderObject(const aiNode* node, const aiScene& aiScene, GameScene& gameScene);
+    bool ParseSceneRecursive(const aiNode* node, const aiScene& aiScene, GameScene& gameScene, std::vector<Handle>& newHandles);
 
+    bool ParseIntoObjectDefinition(const aiNode* node, const aiScene& aiScene, ObjectDefinition& definition);
+    bool ParseDefinitionsRecursive(aiNode* node, const aiScene& aiScene, std::vector<ObjectDefinition>& definitions);
 };
 
 

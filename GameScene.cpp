@@ -41,16 +41,4 @@ Handle GameScene::NewObject_SingleSubMesh(const char *name,
     return handleRenderObj;
 }
 
-void GameScene::AddCustomObject(const Handle& objHandle, vec3 position, vec3 rotation, vec3 scale) {
-
-    auto& obj = renderObjects.GetItemRef(objHandle);
-    Transform& tr = transforms.GetItemRef(obj.hTransform);
-    GL_AllocateGraphicsForObject(obj, Engine::GetInstance()->assetManager);
-
-    Transform_SetLocalScaleVec(tr, scale);
-    Transform_SetLocalPositionVec(tr, position);
-    Transform_SetRotationEulerVec(tr, rotation);
-    existingObjects.push_back(objHandle);
-}
-
 

@@ -13,7 +13,7 @@ typedef struct Mesh{
     int startIndexUV = 0;
     int startIndexColor = 0;
     int startIndexNormals = 0;
-    int startIndexTangents = 0;
+    int startIndexTangent = 0;
 
 
 } Mesh;

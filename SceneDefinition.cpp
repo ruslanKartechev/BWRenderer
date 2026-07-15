@@ -8,12 +8,15 @@
 
 
 constexpr f32 LightDebugScale = .25f;
+
 static Handle h_mat_Floor;
 static Handle h_mat_Table;
 static Handle h_mat_Metal;
-static Handle h_mat_tree;
+static Handle h_mat_Tree;
 
-
+static Handle hMeshTable = {};
+static Handle hMeshTree = {};
+static Handle hMeshLamp = {};
 
 void LoadDefaultTextures(AssetManager& assets) {
     {
@@ -24,19 +27,21 @@ void LoadDefaultTextures(AssetManager& assets) {
 }
 
 
-/// MUST BE USED AFTER SHADERS HAVE BEEN INITIALIZED!
+
 void InitSceneMaterials(AssetManager& assets) {
     const char* defaultShaderName = "Default3D";
     // Floor
     {
         auto& material = assets.materials.GetNewObjectAndHandle(h_mat_Floor);
         GL_InitMaterialParametersDefault3D(material);
-        material.SetVectorDefinition(ID_COLOR_TINT, {0.99f, 0.99f, 0.99f, 1.0});
-        material.SetFloatDefinition(ID_SMOOTHNESS, .6f);
-        material.SetFloatDefinition(ID_METALLIC, .55f);
+        constexpr float c = 0.25f;
+        material.SetVectorDefinition(ID_COLOR_TINT, {c,c,c, 1.0});
+        material.SetFloatDefinition(ID_SMOOTHNESS, .5f);
+        material.SetFloatDefinition(ID_METALLIC, .25f);
+        material.SetFloatDefinition(ID_SSR_POWER, 1.0f);
 
-        material.SetTextureDefinition(ID_BASE_MAP, "tile_concrete.png");
-        material.SetTextureDefinition(ID_NORMAL_MAP, "tile_concrete_normal.jpg");
+        // material.SetTextureDefinition(ID_BASE_MAP, "tile_concrete.png");
+        // material.SetTextureDefinition(ID_NORMAL_MAP, "tile_concrete_normal.jpg");
         material.SetVectorDefinition(ID_BASE_MAP_TO, {8.0f, 8.0f, 0.0f, 0.0f});
 
         assets.LoadTexturesForMaterials(material);
@@ -46,7 +51,7 @@ void InitSceneMaterials(AssetManager& assets) {
     {
         auto& material = assets.materials.GetNewObjectAndHandle(h_mat_Table);
         GL_InitMaterialParametersDefault3D(material);
-        material.SetVectorDefinition(ID_COLOR_TINT, {0.75f, 0.7f, 0.95f, 1.0});
+        material.SetVectorDefinition(ID_COLOR_TINT, {0.75f, 0.45f, 0.45f, 1.0});
         material.SetFloatDefinition(ID_SMOOTHNESS, .25f);
         material.SetFloatDefinition(ID_METALLIC, .25f);
 
@@ -73,7 +78,7 @@ void InitSceneMaterials(AssetManager& assets) {
     }
     // Tree mat 1
     {
-        auto& material = assets.materials.GetNewObjectAndHandle(h_mat_tree);
+        auto& material = assets.materials.GetNewObjectAndHandle(h_mat_Tree);
         material.shaderName = "Tree";
 
         material.SetFloatDefinition(ID_ALPHA_CLIP_VALUE, .5f);
@@ -89,157 +94,208 @@ void InitSceneMaterials(AssetManager& assets) {
     }
 }
 
-void LoadMeshes(AssetManager& assets) {
 
+
+void LoadMeshes(AssetManager& assets) {
+    std::vector<ObjectDefinition> definitions = {};
+
+    // table
+    {
+        definitions.clear();
+        assets.LoadDefinitions("picnic_table.fbx", definitions);
+        hMeshTable = definitions[0].Meshes[0];
+    }
+    // Tree
+    {
+        definitions.clear();
+        assets.LoadDefinitions("TAI_Tree_03A.fbx", definitions);
+        hMeshTree = definitions[0].Meshes[0];
+    }
+    // Lamp
+    {
+        definitions.clear();
+        assets.LoadDefinitions("upd_lamp.fbx", definitions);
+        hMeshLamp = definitions[0].Meshes[0];
+    }
+
+    // std::vector<std::string> paths = {
+    //     "upd_picnic table.fbx",
+    //     "upd_lamp.fbx",
+    //     "TAI_Tree_03A.fbx"
+    // };
+    // loadedDefinitions.reserve(12);
+    // for (auto& path : paths) {
+    //     std::vector<ObjectDefinition> definitions = {};
+    //     std::cout << "[INIT] Loading: " << path << std::endl;
+    //     assets.LoadDefinitions(path.c_str(), definitions);
+    //     std::cout << "Found " << definitions.size() << " object definitions" << std::endl;
+    //
+    //     int i = 1;
+    //     for (auto& def : definitions) {
+    //         std::cout << "Object "<<i++<<" Meshes count: "<< def.Meshes.size() << std::endl;
+    //     }
+    //     loadedDefinitions.insert(loadedDefinitions.end(), definitions.begin(), definitions.end());
+    // }
+    //
+    // for (auto& def : loadedDefinitions) {
+    //     std::cout << "[Init] definition: " << def.name << " MeshesCount: " << def.Meshes.size() << std::endl;
+    // }
 
 }
 
 
+void AddNewCustomObject_SingleMesh(std::string&& name, AssetManager& assets, GameScene& scene,
+                    Handle hMesh, Handle hMaterial,
+                    vec3 pos, vec3 rot, vec3 scale) {
+
+    Handle hObject = scene.NewObject_SingleSubMesh(name.c_str(), hMesh, pos, rot, scale, hMaterial);
+    scene.existingObjects.push_back(hObject);
+}
+
 
 void PlaceObjectsToScene(AssetManager& assets, GameScene& scene) {
-    const float R = 4;
-    const float L = -4;
-    const float F = -5;
-    const float FStep = 4;
-    float posZ = F;
+    float posGeomZ = -2.5f;
+    float posGeomX = -7.0f;
+    float posGeomXStep = 2.5f;
 
-    // cube RR
-    {
-        vec3 pos = {R, 0.5f, posZ};
-        vec3 rot = {0.0f, 0.0f, 0.0f};
-        vec3 scale = {1.0f, 1.0f, 1.0f};
-        Handle objHandle = scene.NewObject_SingleSubMesh("Cube RR", assets.meshCube ,pos, rot, scale, assets.materialDefault3d);
-        scene.existingObjects.push_back(objHandle);
-    }
-    // cube RL
-    {
-        vec3 pos = {L, 0.5f, posZ};
-        vec3 rot = {0.0f, 0.0f, 0.0f};
-        vec3 scale = {1.0f, 1.0f, 1.0f};
-        Handle objHandle = scene.NewObject_SingleSubMesh("Cube RL", assets.meshCube, pos, rot, scale, assets.materialDefault3d);
-        scene.existingObjects.push_back(objHandle);
-    }
-    // Pyramid RL
-    {
-        vec3 pos = {L, 1.85f, posZ};
-        vec3 rot = {0.0f, 0.0f, 0.0f};
-        vec3 scale = {1.0f, 1.0f, 1.0f};
+    float posTableZ = 2;
+    float posTreeZ = 5;
+    float posLampsZ = 10;
 
-        Handle objHandle = scene.NewObject_SingleSubMesh("", assets.meshPyramid, pos, rot, scale, assets.materialDefault3d);
-        scene.existingObjects.push_back(objHandle);
-    }
-    // Pyramid RR
+    //Floor
     {
-        vec3 pos = {R, 1.85f, posZ};
+        vec3 pos = {0.0, -0.5f, 0.0f};
         vec3 rot = {0.0f, 0.0f, 0.0f};
-        vec3 scale = {1.0f, 1.0f, 1.0f};
-
-        Handle objHandle = scene.NewObject_SingleSubMesh("", assets.meshPyramid, pos, rot, scale, assets.materialDefault3d);
+        vec3 scale = {32.0f, 1.0f, 32.0f};
+        Handle objHandle = scene.NewObject_SingleSubMesh("FloorPlane", assets.meshCube, pos, rot, scale, h_mat_Floor);
         scene.existingObjects.push_back(objHandle);
     }
-
-    posZ += FStep;
-    // cube FR
+    // cube 1
     {
-        vec3 pos = {R, 0.5f, posZ};
-        vec3 rot = {0.0f, 0.0f, 0.0f};
-        vec3 scale = {1.0f, 2.0f, 1.0f};
-        Handle objHandle = scene.NewObject_SingleSubMesh("Cube FR", assets.meshCube, pos, rot, scale, assets.materialDefault3d);
-        scene.existingObjects.push_back(objHandle);
-    }
-    // cube FL
-    {
-        vec3 pos = {L, 1.0f, posZ};
+        vec3 pos = {posGeomX, 1.0f, posGeomZ};
         vec3 rot = {0.0f, 0.0f, 0.0f};
         vec3 scale = {1.0f, 2.0f, 1.0f};
         Handle objHandle = scene.NewObject_SingleSubMesh("Cube FL", assets.meshCube, pos, rot, scale, h_mat_Metal);
         scene.existingObjects.push_back(objHandle);
     }
-    // Sphere FR
+    posGeomX += posGeomXStep;
+    // cube 2
     {
-        vec3 pos = {L, 2.5f, posZ};
+        vec3 pos = {posGeomX, 0.5f, posGeomZ};
+        vec3 rot = {0.0f, 0.0f, 0.0f};
+        vec3 scale = {1.0f, 1.0f, 1.0f};
+        Handle objHandle = scene.NewObject_SingleSubMesh("Cube RR", assets.meshCube ,pos, rot, scale, assets.materialDefault3d);
+        scene.existingObjects.push_back(objHandle);
+    }
+    posGeomX += posGeomXStep;
+    // Pyramid
+    {
+        vec3 pos = {posGeomX, .5f, posGeomZ};
+        vec3 rot = {0.0f, 0.0f, 0.0f};
+        vec3 scale = {1.0f, 1.0f, 1.0f};
+        Handle objHandle = scene.NewObject_SingleSubMesh("Pyramid", assets.meshPyramid, pos, rot, scale, assets.materialDefault3d);
+        scene.existingObjects.push_back(objHandle);
+    }
+    posGeomX += posGeomXStep;
+    // Sphere 1
+    {
+        vec3 pos = {posGeomX, .5f, posGeomZ};
         vec3 rot = {0.0f, 0.0f, 0.0f};
         vec3 scale = {1.0f, 1.0f, 1.0f};
         Handle objHandle = scene.NewObject_SingleSubMesh("Sphere", assets.meshSphere, pos, rot, scale, h_mat_Metal);
         scene.existingObjects.push_back(objHandle);
     }
-    // Sphere FL
+    posGeomX += posGeomXStep;
+    // Sphere 2
     {
-        vec3 pos = {R, 2.5f, posZ};
+        vec3 pos = {posGeomX, .5f, posGeomZ};
         vec3 rot = {0.0f, 0.0f, 0.0f};
         vec3 scale = {1.0f, 1.0f, 1.0f};
         Handle objHandle = scene.NewObject_SingleSubMesh("Sphere", assets.meshSphere, pos, rot, scale, assets.materialDefault3d);
         scene.existingObjects.push_back(objHandle);
     }
-
+    posGeomX += posGeomXStep;
     // Capsule
     {
-        vec3 pos = {0.0f, 1.0f, -3.5f};
+        vec3 pos = {posGeomX, 1.0f, posGeomZ};
         vec3 rot = {0.0f, 0.0f, 0.0f};
         vec3 scale = {1.0f, 1.0f, 1.0f};
         Handle objHandle = scene.NewObject_SingleSubMesh("capsule", assets.meshCapsule, pos, rot, scale, assets.materialDefault3d);
         scene.existingObjects.push_back(objHandle);
     }
-    // Table
+    posGeomX += posGeomXStep;
+    // Donut
     {
-        vec3 pos = {0.0f, 0.65f, 0.0f};
-        vec3 rot = {-90.0f, 0.0f, 0.0f};
-        vec3 scale = {0.01f, 0.01f, 0.01f};
-        std::vector<Handle> newHandles = {};
-        assets.LoadModelsFromFbx("upd_picnic table.fbx", scene, newHandles);
-
-        if (newHandles.empty()) {
-            std::cerr << "Failed to load any objects!" << std::endl;
-            return ;
-        }
-
-        auto& mainRO = scene.renderObjects.GetItemRef(newHandles[0]);
-        scene.AddCustomObject(newHandles[0], pos, rot, scale);
-        mainRO.subMeshses[0].hMaterial = h_mat_Table;
+        vec3 pos = {posGeomX, 1.0f, posGeomZ};
+        vec3 rot = {0.0f, 0.0f, 0.0f};
+        vec3 scale = {1.0f, 1.0f, 1.0f};
+        Handle objHandle = scene.NewObject_SingleSubMesh("donut", assets.meshDonut, pos, rot, scale, h_mat_Metal);
+        scene.existingObjects.push_back(objHandle);
     }
-    posZ += FStep;
+
+
+    // Table 1
+    {
+        vec3 pos = {-3.5, 0.6f, posTableZ};
+        vec3 rot = {-90.0f, 0.0f, 0.0f};
+        vec3 scale = {0.0065f, 0.0065f, 0.0065f};
+        AddNewCustomObject_SingleMesh("Table 1", assets, scene, hMeshTable, h_mat_Table, pos, rot, scale);
+    }
+    // Table 2
+    {
+        vec3 pos = {3.5, 0.6f, posTableZ};
+        vec3 rot = {-90.0f, 0.0f, 0.0f};
+        vec3 scale = {0.0065f, 0.0065f, 0.0065f};
+        AddNewCustomObject_SingleMesh("Table 2", assets, scene, hMeshTable, h_mat_Table, pos, rot, scale);
+    }
     // Tree 1
     {
-        vec3 pos = {R, 0.0f, posZ};
+        vec3 pos = {-3.0, 0.0f, posTreeZ};
         vec3 rot = {0.0f, 0.0f, 0.0f};
         const float sf = 0.01f;
         vec3 scale = {sf, sf, sf};
-        std::vector<Handle> newHandles = {};
-        assets.LoadModelsFromFbx("TAI_Tree_03A.fbx", scene, newHandles);
-
-        std::cout << "[SceneDef] TREE Loaded objects count: " << newHandles.size() << std::endl;
-        if (newHandles.empty()) {
-            std::cerr << "Failed to load any objects!" << std::endl;
-            return ;
-        }
-        auto objIdx = 0;
-        // auto objIdx = newHandles.size() - 1;
-        // objIdx = 1;
-        auto& mainRO = scene.renderObjects.GetItemRef(newHandles[objIdx]);
-        mainRO.subMeshses[0].hMaterial = h_mat_tree;
-        scene.AddCustomObject(newHandles[objIdx], pos, rot, scale);
+        AddNewCustomObject_SingleMesh("Tree 1", assets, scene, hMeshTree, h_mat_Tree, pos, rot, scale);
     }
+    // Tree 2
     {
-        vec3 pos = {L, 0.0f, posZ};
+        vec3 pos = {0.0, 0.0f, posTreeZ};
         vec3 rot = {0.0f, 0.0f, 0.0f};
         const float sf = 0.01f;
         vec3 scale = {sf, sf, sf};
-        std::vector<Handle> newHandles = {};
-        assets.LoadModelsFromFbx("TAI_Tree_03A.fbx", scene, newHandles);
-
-        auto objIdx = 0;
-        auto& mainRO = scene.renderObjects.GetItemRef(newHandles[objIdx]);
-        mainRO.subMeshses[0].hMaterial = h_mat_tree;
-        scene.AddCustomObject(newHandles[objIdx], pos, rot, scale);
+        AddNewCustomObject_SingleMesh("Tree 2", assets, scene, hMeshTree, h_mat_Tree, pos, rot, scale);
+    }
+    // Tree 2
+    {
+        vec3 pos = {3.0, 0.0f, posTreeZ};
+        vec3 rot = {0.0f, 0.0f, 0.0f};
+        const float sf = 0.01f;
+        vec3 scale = {sf, sf, sf};
+        AddNewCustomObject_SingleMesh("Tree 3", assets, scene, hMeshTree, h_mat_Tree, pos, rot, scale);
     }
 
-    //Floor
+    // Lamp 1
     {
-        vec3 pos = {0.0f, -0.01f, 0.0f};
+        vec3 pos = {-3.0, 3.0f, posLampsZ};
         vec3 rot = {0.0f, 0.0f, 0.0f};
-        vec3 scale = {32.0f, 1.0f, 32.0f};
-        Handle objHandle = scene.NewObject_SingleSubMesh("FloorPlane", assets.meshPlane, pos, rot, scale, h_mat_Floor);
-        scene.existingObjects.push_back(objHandle);
+        const float sf = 0.01f;
+        vec3 scale = {sf, sf, sf};
+        AddNewCustomObject_SingleMesh("Lamp 1", assets, scene, hMeshLamp, h_mat_Metal, pos, rot, scale);
+    }
+    // Lamp 2
+    {
+        vec3 pos = {0.0, 3.0f, posLampsZ};
+        vec3 rot = {0.0f, 0.0f, 0.0f};
+        const float sf = 0.01f;
+        vec3 scale = {sf, sf, sf};
+        AddNewCustomObject_SingleMesh("Lamp 2", assets, scene, hMeshLamp, h_mat_Metal, pos, rot, scale);
+    }
+    // Lamp 2
+    {
+        vec3 pos = {3.0, 3.0f, posLampsZ};
+        vec3 rot = {0.0f, 0.0f, 0.0f};
+        const float sf = 0.01f;
+        vec3 scale = {sf, sf, sf};
+        AddNewCustomObject_SingleMesh("Lamp 3", assets, scene, hMeshLamp, h_mat_Metal, pos, rot, scale);
     }
 }
 
@@ -256,13 +312,11 @@ void InitSceneLights(GameScene& scene){
     Light& light = scene.mainLight;
     Transform& lightTransform = scene.transforms.GetNewObjectAndHandle(light.transformHandle);
     light.lightType = ELightType::Directional;
-    light.intensity = 0.5f;
-
-    SET_VEC3(light.color, 1.0f, 1.0f, 1.0f);
-    scene.ambientIntensity = .05f;
-
-    const float bright = .8f;
-    SET_VEC3(scene.ambientLightColor, bright, bright, bright);
+    // light.intensity = 0.5f;
+    // SET_VEC3(light.color, 1.0f, 1.0f, 1.0f);
+    // scene.ambientIntensity = .05f;
+    // const float bright = .8f;
+    // SET_VEC3(scene.ambientLightColor, bright, bright, bright);
 
     vec3 pos = {0.0f, 10.0f, -20.0f};
     vec3 eulers = {0.0f, 0.0f, 0.0f};
@@ -276,6 +330,7 @@ void InitSceneLights(GameScene& scene){
 void RunGameSceneInit() {
     auto* engine = Engine::GetInstance();
 
+    LoadMeshes(engine->assetManager);
     InitSceneMaterials(engine->assetManager);
     PlaceCamera(engine->scene);
     InitSceneLights(engine->scene);

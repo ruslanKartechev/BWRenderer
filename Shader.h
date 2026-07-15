@@ -4,6 +4,7 @@
 #include <cglm/cglm.h>
 #include "MyTypes.h"
 
+
 class Shader {
 public:
     Shader();
@@ -15,7 +16,8 @@ public:
     // Destructor clears the program from GPU memory
     ~Shader();
 
-    void SetName(const char* shaderName);
+    void SetName(const char* shaderName, bool pathFromName = true);
+    void SetNameSeparate(const char* shaderName, const char* vertex, const char* fragment);
 
     static void GetVertexFragmentPath(const char* shaderName, std::string& out_vertexPath, std::string& out_fragmentPath);
 

@@ -1,10 +1,16 @@
 #pragma once
 
 inline const char* Shader_SkyboxDefault = "DefaultSkybox";
+inline const char* Shader_Default = "Default3D";
+inline const char* Shader_Default2D = "Default2D";
+
+inline const char* Shader_Debug = "DebugShader";
+inline const char* Shader_ScreenRender = "ScreenRenderTexture";
 
 inline const char* ID_UNIFORM_MODEL = "MATRIX_MODEL";
 inline const char* ID_UNIFORM_VIEW = "MATRIX_VIEW";
 inline const char* ID_UNIFORM_PROJECTION = "MATRIX_PROJECTION";
+inline const char* ID_UNIFORM_PROJECTION_INVERSE = "MATRIX_INVERSE_PROJECTION";
 
 inline const char* ID_UNIFORM_TIME = "GLOBAL_TIME";
 inline const char* ID_UNIFORM_VIEW_POS = "VIEW_POS";
@@ -26,8 +32,16 @@ inline const char* ID_METALLIC = "_METALLIC";
 inline const char* ID_SKYBOX_BRIGHTNESS = "_BRIGHTNESS";
 
 inline const char* ID_SKYBOX_CUBEMAP = "_SKYBOX";
+inline const char* ID_SSR_POWER = "_SSR_POWER";
 
 inline const char* ID_UNIFORM_SCREEN_TEXTURE = "screenTexture";
+inline const char* ID_FAR_PLANE = "FAR_PLANE";
+inline const char* ID_NEAR_PLANE = "NEAR_PLANE";
+
+inline const char* ID_DEPTH_TEX = "u_DepthTex";
+inline const char* ID_COLOR_TEX = "u_ColorTex";
+inline const char* ID_NORMALS_TEX = "u_NormalTex";
+
 
 inline const char* MESH_CUBE = "cube";
 inline const char* MESH_SPHERE = "sphere";
@@ -37,3 +51,4 @@ inline const char* MESH_QUAD = "quad";
 inline const char* MESH_PYRAMID = "pyramid";
 inline const char* MESH_DONUT = "donut";
 inline const char* MESH_CUT_CONE = "cutCone";
+

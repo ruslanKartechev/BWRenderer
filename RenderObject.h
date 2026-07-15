@@ -3,6 +3,14 @@
 #include "SlotsMap.h"
 #include <string>
 
+class ObjectDefinition {
+public:
+    std::string name = {};
+    std::vector<Handle> Meshes = {};
+    std::vector<Handle> Materials = {}; // TODO: implement material parsing from FBX
+
+};
+
 class RenderObject {
 public:
     std::vector<RenderSubMesh> subMeshses;

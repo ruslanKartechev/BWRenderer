@@ -17,10 +17,11 @@ void Mesh_Clear(Mesh& mesh) {
 void Mesh_DefaultSphere(Mesh& mesh) {
     constexpr int segments = 32;
     constexpr int rings = 16;
-    mesh.stride = 8;
+    mesh.stride = 11;
     mesh.startIndexVertex = 0;
     mesh.startIndexUV = 3;
     mesh.startIndexNormals = 5;
+    mesh.startIndexTangent = 8;
     mesh.startIndexColor = -1;
     mesh.vertexDataCount = (rings + 1) * (segments + 1) * mesh.stride;
     mesh.indexCount = rings * segments * 6;
@@ -36,6 +37,12 @@ void Mesh_DefaultSphere(Mesh& mesh) {
             float nx = std::cos(theta) * std::sin(phi);
             float ny = std::cos(phi);
             float nz = std::sin(theta) * std::sin(phi);
+
+            // Tangent: Derivative of position with respect to U (theta)
+            float tx = -std::sin(theta);
+            float ty = 0.0f;
+            float tz = std::cos(theta);
+
             mesh.vertexData[vIdx++] = nx * 0.5f;
             mesh.vertexData[vIdx++] = ny * 0.5f;
             mesh.vertexData[vIdx++] = nz * 0.5f;
@@ -44,7 +51,9 @@ void Mesh_DefaultSphere(Mesh& mesh) {
             mesh.vertexData[vIdx++] = nx;
             mesh.vertexData[vIdx++] = ny;
             mesh.vertexData[vIdx++] = nz;
-
+            mesh.vertexData[vIdx++] = tx;
+            mesh.vertexData[vIdx++] = ty;
+            mesh.vertexData[vIdx++] = tz;
         }
     }
     int iIdx = 0;
@@ -72,10 +81,11 @@ void Mesh_DefaultCapsule(Mesh& mesh) {
     constexpr float radius = 0.5f;
     constexpr float height = 2.0f;
     constexpr float cylinderHeight = height - 2.0f * radius;
-    mesh.stride = 8;
+    mesh.stride = 11;
     mesh.startIndexVertex = 0;
     mesh.startIndexUV = 3;
     mesh.startIndexNormals = 5;
+    mesh.startIndexTangent = 8;
     mesh.startIndexColor = -1;
     mesh.vertexDataCount = ((halfRings + 1) * 2 * (segments + 1)) * mesh.stride;
     mesh.indexCount = (rings + 1) * segments * 6;
@@ -90,6 +100,11 @@ void Mesh_DefaultCapsule(Mesh& mesh) {
             float nx = std::cos(theta) * std::sin(phi);
             float ny = std::cos(phi);
             float nz = std::sin(theta) * std::sin(phi);
+
+            float tx = -std::sin(theta);
+            float ty = 0.0f;
+            float tz = std::cos(theta);
+
             float trueY = ny * radius + cylinderHeight * 0.5f;
             float v = 1.0f - (trueY + height * 0.5f) / height;
             mesh.vertexData[vIdx++] = nx * radius;
@@ -100,6 +115,9 @@ void Mesh_DefaultCapsule(Mesh& mesh) {
             mesh.vertexData[vIdx++] = nx;
             mesh.vertexData[vIdx++] = ny;
             mesh.vertexData[vIdx++] = nz;
+            mesh.vertexData[vIdx++] = tx;
+            mesh.vertexData[vIdx++] = ty;
+            mesh.vertexData[vIdx++] = tz;
         }
     }
     for (int y = 0; y <= halfRings; y++) {
@@ -110,6 +128,11 @@ void Mesh_DefaultCapsule(Mesh& mesh) {
             float nx = std::cos(theta) * std::sin(phi);
             float ny = std::cos(phi);
             float nz = std::sin(theta) * std::sin(phi);
+
+            float tx = -std::sin(theta);
+            float ty = 0.0f;
+            float tz = std::cos(theta);
+
             float trueY = ny * radius - cylinderHeight * 0.5f;
             float v = 1.0f - (trueY + height * 0.5f) / height;
             mesh.vertexData[vIdx++] = nx * radius;
@@ -120,6 +143,9 @@ void Mesh_DefaultCapsule(Mesh& mesh) {
             mesh.vertexData[vIdx++] = nx;
             mesh.vertexData[vIdx++] = ny;
             mesh.vertexData[vIdx++] = nz;
+            mesh.vertexData[vIdx++] = tx;
+            mesh.vertexData[vIdx++] = ty;
+            mesh.vertexData[vIdx++] = tz;
         }
     }
     int iIdx = 0;
@@ -142,35 +168,38 @@ void Mesh_DefaultCapsule(Mesh& mesh) {
 
 
 void Mesh_DefaultPyramid(Mesh& mesh) {
-    mesh.stride = 8;
+    mesh.stride = 11;
     mesh.startIndexVertex = 0;
     mesh.startIndexUV = 3;
     mesh.startIndexNormals = 5;
+    mesh.startIndexTangent = 8;
     mesh.startIndexColor = -1;
     mesh.vertexDataCount = 16 * mesh.stride;
     mesh.indexCount = 18;
 
     mesh.vertexData = new float[] {
-        -0.5f, -0.5f,  0.5f,  0.0f, 0.0f,   0.0f, 0.4472136f, 0.8944272f,
-         0.5f, -0.5f,  0.5f,  1.0f, 0.0f,   0.0f, 0.4472136f, 0.8944272f,
-         0.0f,  0.5f,  0.0f,  0.5f, 1.0f,   0.0f, 0.4472136f, 0.8944272f,
+        // POSITION           // UV         // Normal                         // Tangent
+        // Front Face (+Z)
+        -0.5f, -0.5f,  0.5f,  0.0f, 0.0f,   0.0f, 0.4472136f, 0.8944272f,     1.0f, 0.0f, 0.0f,
+         0.5f, -0.5f,  0.5f,  1.0f, 0.0f,   0.0f, 0.4472136f, 0.8944272f,     1.0f, 0.0f, 0.0f,
+         0.0f,  0.5f,  0.0f,  0.5f, 1.0f,   0.0f, 0.4472136f, 0.8944272f,     1.0f, 0.0f, 0.0f,
         // Right Face (+X)
-         0.5f, -0.5f,  0.5f,  0.0f, 0.0f,   0.8944272f, 0.4472136f, 0.0f,
-         0.5f, -0.5f, -0.5f,  1.0f, 0.0f,   0.8944272f, 0.4472136f, 0.0f,
-         0.0f,  0.5f,  0.0f,  0.5f, 1.0f,   0.8944272f, 0.4472136f, 0.0f,
+         0.5f, -0.5f,  0.5f,  0.0f, 0.0f,   0.8944272f, 0.4472136f, 0.0f,     0.0f, 0.0f, -1.0f,
+         0.5f, -0.5f, -0.5f,  1.0f, 0.0f,   0.8944272f, 0.4472136f, 0.0f,     0.0f, 0.0f, -1.0f,
+         0.0f,  0.5f,  0.0f,  0.5f, 1.0f,   0.8944272f, 0.4472136f, 0.0f,     0.0f, 0.0f, -1.0f,
         // Back Face (-Z)
-         0.5f, -0.5f, -0.5f,  0.0f, 0.0f,   0.0f, 0.4472136f, -0.8944272f,
-        -0.5f, -0.5f, -0.5f,  1.0f, 0.0f,   0.0f, 0.4472136f, -0.8944272f,
-         0.0f,  0.5f,  0.0f,  0.5f, 1.0f,   0.0f, 0.4472136f, -0.8944272f,
+         0.5f, -0.5f, -0.5f,  0.0f, 0.0f,   0.0f, 0.4472136f, -0.8944272f,   -1.0f, 0.0f, 0.0f,
+        -0.5f, -0.5f, -0.5f,  1.0f, 0.0f,   0.0f, 0.4472136f, -0.8944272f,   -1.0f, 0.0f, 0.0f,
+         0.0f,  0.5f,  0.0f,  0.5f, 1.0f,   0.0f, 0.4472136f, -0.8944272f,   -1.0f, 0.0f, 0.0f,
         // Left Face (-X)
-        -0.5f, -0.5f, -0.5f,  0.0f, 0.0f,  -0.8944272f, 0.4472136f, 0.0f,
-        -0.5f, -0.5f,  0.5f,  1.0f, 0.0f,  -0.8944272f, 0.4472136f, 0.0f,
-         0.0f,  0.5f,  0.0f,  0.5f, 1.0f,  -0.8944272f, 0.4472136f, 0.0f,
+        -0.5f, -0.5f, -0.5f,  0.0f, 0.0f,  -0.8944272f, 0.4472136f, 0.0f,     0.0f, 0.0f, 1.0f,
+        -0.5f, -0.5f,  0.5f,  1.0f, 0.0f,  -0.8944272f, 0.4472136f, 0.0f,     0.0f, 0.0f, 1.0f,
+         0.0f,  0.5f,  0.0f,  0.5f, 1.0f,  -0.8944272f, 0.4472136f, 0.0f,     0.0f, 0.0f, 1.0f,
         // Bottom Face (-Y)
-        -0.5f, -0.5f, -0.5f,  0.0f, 1.0f,   0.0f, -1.0f, 0.0f,
-         0.5f, -0.5f, -0.5f,  1.0f, 1.0f,   0.0f, -1.0f, 0.0f,
-         0.5f, -0.5f,  0.5f,  1.0f, 0.0f,   0.0f, -1.0f, 0.0f,
-        -0.5f, -0.5f,  0.5f,  0.0f, 0.0f,   0.0f, -1.0f, 0.0f
+        -0.5f, -0.5f, -0.5f,  0.0f, 1.0f,   0.0f, -1.0f, 0.0f,                1.0f, 0.0f, 0.0f,
+         0.5f, -0.5f, -0.5f,  1.0f, 1.0f,   0.0f, -1.0f, 0.0f,                1.0f, 0.0f, 0.0f,
+         0.5f, -0.5f,  0.5f,  1.0f, 0.0f,   0.0f, -1.0f, 0.0f,                1.0f, 0.0f, 0.0f,
+        -0.5f, -0.5f,  0.5f,  0.0f, 0.0f,   0.0f, -1.0f, 0.0f,                1.0f, 0.0f, 0.0f
     };
 
     mesh.indexData = new int[] {
@@ -189,18 +218,20 @@ void Mesh_DefaultPlane(Mesh& mesh) {
 }
 
 void Mesh_DefaultQuad(Mesh& mesh) {
-    mesh.stride = 8;
+    mesh.stride = 11;
     mesh.startIndexVertex = 0;
     mesh.startIndexUV = 3;
     mesh.startIndexNormals = 5;
+    mesh.startIndexTangent = 8;
     mesh.startIndexColor = -1;
     mesh.vertexDataCount = 4 * mesh.stride;
     mesh.indexCount = 6;
     mesh.vertexData = new float[] {
-        -0.5f, 0.0f, -0.5f,   0.0f, 0.0f,  0.0f, 1.0f, 0.0f,
-         0.5f, 0.0f, -0.5f,   1.0f, 0.0f,  0.0f, 1.0f, 0.0f,
-         0.5f, 0.0f,  0.5f,   1.0f, 1.0f,  0.0f, 1.0f, 0.0f,
-        -0.5f, 0.0f,  0.5f,   0.0f, 1.0f,  0.0f, 1.0f, 0.0f
+        // POSITION           // UV         // Normal            // Tangent
+        -0.5f, 0.0f, -0.5f,   0.0f, 0.0f,   0.0f, 1.0f, 0.0f,    1.0f, 0.0f, 0.0f,
+         0.5f, 0.0f, -0.5f,   1.0f, 0.0f,   0.0f, 1.0f, 0.0f,    1.0f, 0.0f, 0.0f,
+         0.5f, 0.0f,  0.5f,   1.0f, 1.0f,   0.0f, 1.0f, 0.0f,    1.0f, 0.0f, 0.0f,
+        -0.5f, 0.0f,  0.5f,   0.0f, 1.0f,   0.0f, 1.0f, 0.0f,    1.0f, 0.0f, 0.0f
     };
     mesh.indexData = new int[] {
         0, 2, 1, 0, 3, 2
@@ -212,10 +243,11 @@ void Mesh_DefaultDonut(Mesh& mesh) {
     constexpr int tubeSegments = 16;
     constexpr float majorRadius = 0.75f;
     constexpr float minorRadius = 0.25f;
-    mesh.stride = 8;
+    mesh.stride = 11;
     mesh.startIndexVertex = 0;
     mesh.startIndexUV = 3;
     mesh.startIndexNormals = 5;
+    mesh.startIndexTangent = 8;
     mesh.startIndexColor = -1;
     mesh.vertexDataCount = (mainSegments + 1) * (tubeSegments + 1) * mesh.stride;
     mesh.indexCount = mainSegments * tubeSegments * 6;
@@ -230,6 +262,11 @@ void Mesh_DefaultDonut(Mesh& mesh) {
         float theta = u * TwoPI;
         float cosTheta = std::cos(theta);
         float sinTheta = std::sin(theta);
+
+        float tx = -sinTheta;
+        float ty = 0.0f;
+        float tz = cosTheta;
+
         for (int x = 0; x <= tubeSegments; x++) {
             float v = (float)x / tubeSegments;
             float phi = v * TwoPI;
@@ -256,6 +293,9 @@ void Mesh_DefaultDonut(Mesh& mesh) {
             mesh.vertexData[vIdx++] = nx;
             mesh.vertexData[vIdx++] = ny;
             mesh.vertexData[vIdx++] = nz;
+            mesh.vertexData[vIdx++] = tx;
+            mesh.vertexData[vIdx++] = ty;
+            mesh.vertexData[vIdx++] = tz;
         }
     }
     int iIdx = 0;
@@ -265,12 +305,13 @@ void Mesh_DefaultDonut(Mesh& mesh) {
             int p1 = p0 + 1;
             int p2 = p0 + (tubeSegments + 1);
             int p3 = p2 + 1;
+            mesh.indexData[iIdx++] = p1;
+            mesh.indexData[iIdx++] = p2;
             mesh.indexData[iIdx++] = p0;
-            mesh.indexData[iIdx++] = p2;
-            mesh.indexData[iIdx++] = p1;
-            mesh.indexData[iIdx++] = p1;
-            mesh.indexData[iIdx++] = p2;
+
             mesh.indexData[iIdx++] = p3;
+            mesh.indexData[iIdx++] = p2;
+            mesh.indexData[iIdx++] = p1;
         }
     }
 }
@@ -278,45 +319,46 @@ void Mesh_DefaultCutCone(Mesh& mesh)
 {
     constexpr float d = 0.5f;
     constexpr float ds = 0.25f;
-    mesh.stride = 8;
+    mesh.stride = 11;
     mesh.vertexDataCount = 24 * mesh.stride;
     mesh.indexCount = 36;
     mesh.startIndexVertex = 0;
     mesh.startIndexUV = 3;
     mesh.startIndexNormals = 5;
+    mesh.startIndexTangent = 8;
     mesh.startIndexColor = -1;
     mesh.vertexData = new float[] {
-        // POSITION    // UV       // Normal
-        // Front Face (Z = 0.5f)
-        -ds, -ds,  d,   0.0f, 0.0f,   0, 0,  1,
-         ds, -ds,  d,   1.0f, 0.0f,   0, 0,  1,
-         ds,  ds,  d,   1.0f, 1.0f,   0, 0,  1,
-        -ds,  ds,  d,   0.0f, 1.0f,   0, 0,  1,
+        // POSITION    // UV          // Normal      // Tangent
+        // Front Face (Z = d)
+        -ds, -ds,  d,   0.0f, 0.0f,   0, 0,  1,      1.0f, 0.0f, 0.0f,
+         ds, -ds,  d,   1.0f, 0.0f,   0, 0,  1,      1.0f, 0.0f, 0.0f,
+         ds,  ds,  d,   1.0f, 1.0f,   0, 0,  1,      1.0f, 0.0f, 0.0f,
+        -ds,  ds,  d,   0.0f, 1.0f,   0, 0,  1,      1.0f, 0.0f, 0.0f,
         // Back Face (Z = -d)
-         d, -d, -d,   0.0f, 0.0f,   0, 0, -1,
-        -d, -d, -d,   1.0f, 0.0f,   0, 0, -1,
-        -d,  d, -d,   1.0f, 1.0f,   0, 0, -1,
-         d,  d, -d,   0.0f, 1.0f,   0, 0, -1,
+         d, -d, -d,   0.0f, 0.0f,   0, 0, -1,     -1.0f, 0.0f, 0.0f,
+        -d, -d, -d,   1.0f, 0.0f,   0, 0, -1,     -1.0f, 0.0f, 0.0f,
+        -d,  d, -d,   1.0f, 1.0f,   0, 0, -1,     -1.0f, 0.0f, 0.0f,
+         d,  d, -d,   0.0f, 1.0f,   0, 0, -1,     -1.0f, 0.0f, 0.0f,
         // Left Face (X = -d)
-        -d, -d, -d,   0.0f, 0.0f, - 1, 0, 0,
-        -ds, -ds, d,   1.0f, 0.0f, - 1, 0, 0,
-        -ds,  ds, d,   1.0f, 1.0f, - 1, 0, 0,
-        -d,  d, -d,   0.0f, 1.0f, - 1, 0, 0,
+        -d, -d, -d,   0.0f, 0.0f,  -1, 0,  0,      0.0f, 0.0f, 1.0f,
+        -ds, -ds, d,   1.0f, 0.0f,  -1, 0,  0,      0.0f, 0.0f, 1.0f,
+        -ds,  ds, d,   1.0f, 1.0f,  -1, 0,  0,      0.0f, 0.0f, 1.0f,
+        -d,  d, -d,   0.0f, 1.0f,  -1, 0,  0,      0.0f, 0.0f, 1.0f,
         // Right Face (X = d)
-         ds, -ds,  d,   0.0f, 0.0f,   1, 0, 0,
-         d, -d, -d,   1.0f, 0.0f,   1, 0, 0,
-         d,  d, -d,   1.0f, 1.0f,   1, 0, 0,
-         ds,  ds, d,   0.0f, 1.0f,   1, 0, 0,
+         ds, -ds,  d,   0.0f, 0.0f,   1, 0,  0,      0.0f, 0.0f, -1.0f,
+         d, -d, -d,   1.0f, 0.0f,   1, 0,  0,      0.0f, 0.0f, -1.0f,
+         d,  d, -d,   1.0f, 1.0f,   1, 0,  0,      0.0f, 0.0f, -1.0f,
+         ds,  ds, d,   0.0f, 1.0f,   1, 0,  0,      0.0f, 0.0f, -1.0f,
         // Top Face (Y = d)
-        -ds,  ds,  d,   0.0f, 0.0f,   0, 1, 0,
-         ds,  ds,  d,   1.0f, 0.0f,   0, 1, 0,
-         d,  d, -d,   1.0f, 1.0f,   0, 1, 0,
-        -d,  d, -d,   0.0f, 1.0f,   0, 1, 0,
+        -ds,  ds,  d,   0.0f, 0.0f,   0, 1,  0,      1.0f, 0.0f, 0.0f,
+         ds,  ds,  d,   1.0f, 0.0f,   0, 1,  0,      1.0f, 0.0f, 0.0f,
+         d,  d, -d,   1.0f, 1.0f,   0, 1,  0,      1.0f, 0.0f, 0.0f,
+        -d,  d, -d,   0.0f, 1.0f,   0, 1,  0,      1.0f, 0.0f, 0.0f,
         // Bottom Face (Y = -d)
-        -d, -d, -d,   0.0f, 0.0f,   0, -1, 0,
-         d, -d, -d,   1.0f, 0.0f,   0, -1, 0,
-         ds, -ds,  d,   1.0f, 1.0f,   0, -1, 0,
-        -ds, -ds,  d,   0.0f, 1.0f,   0, -1, 0,
+        -d, -d, -d,   0.0f, 0.0f,   0,-1,  0,      1.0f, 0.0f, 0.0f,
+         d, -d, -d,   1.0f, 0.0f,   0,-1,  0,      1.0f, 0.0f, 0.0f,
+         ds, -ds,  d,   1.0f, 1.0f,   0,-1,  0,      1.0f, 0.0f, 0.0f,
+        -ds, -ds,  d,   0.0f, 1.0f,   0,-1,  0,      1.0f, 0.0f, 0.0f,
     };
 
     mesh.indexData = new int[mesh.indexCount] {
@@ -331,45 +373,46 @@ void Mesh_DefaultCutCone(Mesh& mesh)
 
 void Mesh_DefaultCube(Mesh& mesh) {
     constexpr float d = 0.5f;
-    mesh.stride = 8;
+    mesh.stride = 11;
     mesh.vertexDataCount = 24 * mesh.stride;
     mesh.indexCount = 36;
     mesh.startIndexVertex = 0;
     mesh.startIndexUV = 3;
     mesh.startIndexNormals = 5;
+    mesh.startIndexTangent = 8;
     mesh.startIndexColor = -1;
     mesh.vertexData = new float[] {
-        // POSITION    // UV       // Normal
+        // POSITION    // UV          // Normal      // Tangent
         // Front Face (Z = 0.5f)
-        -d, -d,  d,   0.0f, 0.0f,   0, 0,  1,
-         d, -d,  d,   1.0f, 0.0f,   0, 0,  1,
-         d,  d,  d,   1.0f, 1.0f,   0, 0,  1,
-        -d,  d,  d,   0.0f, 1.0f,   0, 0,  1,
+        -d, -d,  d,   0.0f, 0.0f,   0, 0,  1,      1.0f, 0.0f, 0.0f,
+         d, -d,  d,   1.0f, 0.0f,   0, 0,  1,      1.0f, 0.0f, 0.0f,
+         d,  d,  d,   1.0f, 1.0f,   0, 0,  1,      1.0f, 0.0f, 0.0f,
+        -d,  d,  d,   0.0f, 1.0f,   0, 0,  1,      1.0f, 0.0f, 0.0f,
         // Back Face (Z = -d)
-         d, -d, -d,   0.0f, 0.0f,   0, 0, -1,
-        -d, -d, -d,   1.0f, 0.0f,   0, 0, -1,
-        -d,  d, -d,   1.0f, 1.0f,   0, 0, -1,
-         d,  d, -d,   0.0f, 1.0f,   0, 0, -1,
+         d, -d, -d,   0.0f, 0.0f,   0, 0, -1,     -1.0f, 0.0f, 0.0f,
+        -d, -d, -d,   1.0f, 0.0f,   0, 0, -1,     -1.0f, 0.0f, 0.0f,
+        -d,  d, -d,   1.0f, 1.0f,   0, 0, -1,     -1.0f, 0.0f, 0.0f,
+         d,  d, -d,   0.0f, 1.0f,   0, 0, -1,     -1.0f, 0.0f, 0.0f,
         // Left Face (X = -d)
-        -d, -d, -d,   0.0f, 0.0f, - 1, 0, 0,
-        -d, -d,  d,   1.0f, 0.0f, - 1, 0, 0,
-        -d,  d,  d,   1.0f, 1.0f, - 1, 0, 0,
-        -d,  d, -d,   0.0f, 1.0f, - 1, 0, 0,
+        -d, -d, -d,   0.0f, 0.0f,  -1, 0,  0,      0.0f, 0.0f, 1.0f,
+        -d, -d,  d,   1.0f, 0.0f,  -1, 0,  0,      0.0f, 0.0f, 1.0f,
+        -d,  d,  d,   1.0f, 1.0f,  -1, 0,  0,      0.0f, 0.0f, 1.0f,
+        -d,  d, -d,   0.0f, 1.0f,  -1, 0,  0,      0.0f, 0.0f, 1.0f,
         // Right Face (X = d)
-         d, -d,  d,   0.0f, 0.0f,   1, 0, 0,
-         d, -d, -d,   1.0f, 0.0f,   1, 0, 0,
-         d,  d, -d,   1.0f, 1.0f,   1, 0, 0,
-         d,  d,  d,   0.0f, 1.0f,   1, 0, 0,
+         d, -d,  d,   0.0f, 0.0f,   1, 0,  0,      0.0f, 0.0f, -1.0f,
+         d, -d, -d,   1.0f, 0.0f,   1, 0,  0,      0.0f, 0.0f, -1.0f,
+         d,  d, -d,   1.0f, 1.0f,   1, 0,  0,      0.0f, 0.0f, -1.0f,
+         d,  d,  d,   0.0f, 1.0f,   1, 0,  0,      0.0f, 0.0f, -1.0f,
         // Top Face (Y = d)
-        -d,  d,  d,   0.0f, 0.0f,   0, 1, 0,
-         d,  d,  d,   1.0f, 0.0f,   0, 1, 0,
-         d,  d, -d,   1.0f, 1.0f,   0, 1, 0,
-        -d,  d, -d,   0.0f, 1.0f,   0, 1, 0,
+        -d,  d,  d,   0.0f, 0.0f,   0, 1,  0,      1.0f, 0.0f, 0.0f,
+         d,  d,  d,   1.0f, 0.0f,   0, 1,  0,      1.0f, 0.0f, 0.0f,
+         d,  d, -d,   1.0f, 1.0f,   0, 1,  0,      1.0f, 0.0f, 0.0f,
+        -d,  d, -d,   0.0f, 1.0f,   0, 1,  0,      1.0f, 0.0f, 0.0f,
         // Bottom Face (Y = -d)
-        -d, -d, -d,   0.0f, 0.0f,   0, -1, 0,
-         d, -d, -d,   1.0f, 0.0f,   0, -1, 0,
-         d, -d,  d,   1.0f, 1.0f,   0, -1, 0,
-        -d, -d,  d,   0.0f, 1.0f,   0, -1, 0,
+        -d, -d, -d,   0.0f, 0.0f,   0,-1,  0,      1.0f, 0.0f, 0.0f,
+         d, -d, -d,   1.0f, 0.0f,   0,-1,  0,      1.0f, 0.0f, 0.0f,
+         d, -d,  d,   1.0f, 1.0f,   0,-1,  0,      1.0f, 0.0f, 0.0f,
+        -d, -d,  d,   0.0f, 1.0f,   0,-1,  0,      1.0f, 0.0f, 0.0f,
     };
 
     mesh.indexData = new int[mesh.indexCount] {
@@ -390,6 +433,7 @@ void Mesh_Print(Mesh& mesh) {
     printf("[m] startIndexUV %d\n", mesh.startIndexUV );
     printf("[m] startIndexColor %d\n", mesh.startIndexColor );
     printf("[m] startIndexNormals %d\n", mesh.startIndexNormals );
+    printf("[m] startIndexTangent %d\n", mesh.startIndexTangent );
 
     for (size_t i = 0; i < mesh.vertexDataCount; i++) {
         if (i > 0 && i % 3 == 0) {

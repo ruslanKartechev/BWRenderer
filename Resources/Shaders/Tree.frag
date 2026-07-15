@@ -1,6 +1,8 @@
 #version 330 core
 
-out vec4 FragColor;
+layout(location = 0) out vec4 FragColor;
+layout(location = 1) out vec4 FragNormal;
+layout(location = 2) out vec2 FragReflection;
 
 struct Light{
     vec3 direction;
@@ -9,7 +11,7 @@ struct Light{
 };
 
 in vec4 out_vertColor;
-in vec2 out_uv;
+in vec2 v_uv;
 in vec3 out_normal;
 in vec3 FragPos;
 
@@ -23,7 +25,7 @@ uniform sampler2D _BASE_MAP;
 
 
 void main(){
-    vec4 texColor = texture(_BASE_MAP, out_uv);
+    vec4 texColor = texture(_BASE_MAP, v_uv);
     if(texColor.a < _ALPHA_CLIP_VALUE){
         discard;
         return;
@@ -42,4 +44,7 @@ void main(){
 
     vec3 lightingTotal = ambient + diffuse + spec;
     FragColor = normalize(texColor * out_vertColor * vec4(lightingTotal, 1.0));
+
+    FragNormal = vec4(norm, 0.0);
+    FragReflection = vec2(0.0, 0.0);
 }

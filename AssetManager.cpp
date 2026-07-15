@@ -4,7 +4,6 @@
 
 #include "MyTypes.h"
 #include "assimp/assimp/Importer.hpp"
-#include "assimp/assimp/scene.h"
 #include "assimp/assimp/postprocess.h"
 #include "AssetManager.h"
 
@@ -77,7 +76,7 @@ void ParseAssimpMesh(const aiMesh& ai_mesh, Mesh& out_mesh) {
     out_mesh.startIndexUV = -1;
     out_mesh.startIndexNormals = -1;
     out_mesh.startIndexColor = -1;
-    out_mesh.startIndexTangents = -1;
+    out_mesh.startIndexTangent = -1;
     if(ai_mesh.HasTextureCoords(0)) {
         out_mesh.startIndexUV = stride;
         stride += 2;
@@ -91,7 +90,7 @@ void ParseAssimpMesh(const aiMesh& ai_mesh, Mesh& out_mesh) {
         stride += 4;
     }
     if(ai_mesh.HasTangentsAndBitangents()) {
-        out_mesh.startIndexTangents = stride;
+        out_mesh.startIndexTangent = stride;
         stride += 3;
     }
     out_mesh.stride = stride;
@@ -117,7 +116,7 @@ void ParseAssimpMesh(const aiMesh& ai_mesh, Mesh& out_mesh) {
             out_mesh.vertexData[offset++] = ai_mesh.mColors[0][i].b;
             out_mesh.vertexData[offset++] = ai_mesh.mColors[0][i].a;
         }
-        if (out_mesh.startIndexTangents != -1) {
+        if (out_mesh.startIndexTangent != -1) {
             out_mesh.vertexData[offset++] = ai_mesh.mTangents[i].x;
             out_mesh.vertexData[offset++] = ai_mesh.mTangents[i].y;
             out_mesh.vertexData[offset++] = ai_mesh.mTangents[i].z;
@@ -137,7 +136,7 @@ void ParseAssimpMesh(const aiMesh& ai_mesh, Mesh& out_mesh) {
 }
 
 
-Handle AssetManager::ParseIntoRenderObject(aiNode* node, const aiScene& aiScene, GameScene& gameScene) {
+Handle AssetManager::ParseIntoRenderObject(const aiNode* node, const aiScene& aiScene, GameScene& gameScene) {
     Handle objHandle {0,0};
     RenderObject& renderObject = gameScene.renderObjects.GetNewObjectAndHandle(objHandle);
     Transform& objTransform = gameScene.transforms.GetNewObjectAndHandle(renderObject.hTransform);
@@ -170,8 +169,7 @@ Handle AssetManager::ParseIntoRenderObject(aiNode* node, const aiScene& aiScene,
     return objHandle;
 }
 
-/// Parses the first non-empty mesh only
-bool AssetManager::ParseSceneRecursive(aiNode* node, const aiScene& aiScene, GameScene& gameScene, std::vector<Handle>& newHandles) {
+bool AssetManager::ParseSceneRecursive(const aiNode* node, const aiScene& aiScene, GameScene& gameScene, std::vector<Handle>& newHandles) {
     if(node->mNumMeshes > 0) {
         Handle newObjHandle = ParseIntoRenderObject(node, aiScene, gameScene);
         newHandles.push_back(newObjHandle);
@@ -183,7 +181,48 @@ bool AssetManager::ParseSceneRecursive(aiNode* node, const aiScene& aiScene, Gam
 }
 
 
-int AssetManager::LoadMeshesFromFBX(const char* path, GameScene& gameScene, std::vector<Handle>& newMeshHandles){
+
+
+bool AssetManager::ParseIntoObjectDefinition(const aiNode* node, const aiScene& aiScene, ObjectDefinition& definition) {
+
+    size_t renderMeshCount = 0;
+    definition.name = std::string(node->mName.C_Str());
+    for (size_t i = 0; i < node->mNumMeshes; i++) {
+        u32* nodeMeshes = node->mMeshes;
+        u32 idx = nodeMeshes[i];
+        if (aiScene.mMeshes[idx] == nullptr) {
+            continue;
+        }
+        aiMesh& aiMesh = *aiScene.mMeshes[idx];
+
+        Handle hMesh = {0,0};
+        Mesh& gameMesh = meshes.GetNewObjectAndHandle(hMesh);
+        gameMesh.name = std::string(aiMesh.mName.C_Str());
+        ParseAssimpMesh(aiMesh, gameMesh);
+        definition.Meshes.push_back(hMesh);
+        renderMeshCount++;
+    }
+    return true;
+}
+
+/// Parses the first non-empty mesh only
+bool AssetManager::ParseDefinitionsRecursive(aiNode* node, const aiScene& aiScene,
+                    std::vector<ObjectDefinition>& definitions) {
+
+    if(node->mNumMeshes > 0) {
+        definitions.emplace_back();
+        auto& newObj = definitions[definitions.size()-1];
+        ParseIntoObjectDefinition(node, aiScene, newObj);
+    }
+    for (size_t i = 0; i < node->mNumChildren; i++) {
+        ParseDefinitionsRecursive(node->mChildren[i], aiScene, definitions);
+    }
+    return true;
+}
+
+
+int AssetManager::LoadDefinitions(const char* path, std::vector<ObjectDefinition>& definitions){
+
     auto filePath = GetGlobalPathModel(path);
     Assimp::Importer importer;
     const aiScene* scene = importer.ReadFile(filePath, aiProcess_Triangulate
@@ -199,20 +238,17 @@ int AssetManager::LoadMeshesFromFBX(const char* path, GameScene& gameScene, std:
         std::cerr << "The root node is null!" << std::endl;
         return 2;
     }
-    ParseSceneRecursive(scene->mRootNode, *scene, gameScene, newMeshHandles);
+    ParseDefinitionsRecursive(scene->mRootNode, *scene, definitions);
     return 0;
 }
+
 
 
 
 int AssetManager::LoadModelsFromFbx(const char *path, GameScene &gameScene, std::vector<Handle> &objectsHandles) {
     auto filePath = GetGlobalPathModel(path);
     Assimp::Importer importer;
-    const aiScene *scene = importer.ReadFile(filePath, aiProcess_Triangulate
-                                                       | aiProcess_FlipUVs
-                                                       | aiProcess_GenSmoothNormals
-                                                       | aiProcess_CalcTangentSpace);
-
+    const aiScene *scene = importer.ReadFile(filePath, aiProcess_Triangulate | aiProcess_FlipUVs | aiProcess_GenSmoothNormals | aiProcess_CalcTangentSpace);
     if (scene == nullptr) {
         std::cerr << "FAILED TO LOAD SCENE" << std::endl;
         return 1;
@@ -236,21 +272,20 @@ Shader& AssetManager::GetDefault2D() {
     // printf("[SR] Shader RETURNING %d, %d\n", default2D.index, default2D.generation);
     return shaders.GetItemRef(shaderDefault2D);
 }
-
 Shader& AssetManager::GetSkyboxDefault() {
     return shaders.GetItemRef(shaderDefaultSkybox);
 }
-
 Shader& AssetManager::GetFallback() {
     return shaders.GetItemRef(shaderFallback);
 }
 Shader& AssetManager::GetScreenRenderTextureShader() {
-    // printf("[SR] Getting item ref %d, %d \n", h.index, h.generation);
     return shaders.GetItemRef(shaderScreenRenderTexture);
 }
 Shader& AssetManager::GetShader(Handle h) {
-    // printf("[SR] Getting item ref %d, %d \n", h.index, h.generation);
     return shaders.GetItemRef(h);
+}
+Shader& AssetManager::GetShaderSSR() {
+    return shaders.GetItemRef(shaderSSR);
 }
 
 

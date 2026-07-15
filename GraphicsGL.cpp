@@ -5,45 +5,33 @@
 #include "Uniforms.h"
 #include "Camera.h"
 #include "Engine.h"
+#include "cglm/cglm.h"
+
+#define DEBUG_FLAGS__
 
 class Engine;
 static int DidLogTransforms;
 
-struct RenderTarget {
-    GLuint fbo;
-    GLuint colorTexture;
-    GLuint rbo;
-    GLuint quadVAO;
-    GLuint quadVBO;
-};
-
 static RenderTarget renderTarget = {};
+static PostProcessStack ppStack = {};
 
 // Forward-declaration
-void RenderScreenTexture(const RenderTarget& target, Shader& quadShader);
+void RenderColorBufferToScreen(const RenderTarget& target, Shader& shader);
+
+static u32 RENDER_TEX_TYPE = GL_FLOAT;
+static i32 RENDER_TEX_STORE_FORMAT = GL_RGBA16F;
+static u32 RENDER_TEX_IN_FORMAT = GL_RGBA;
 
 
-void GL_ResizeRenderTarget(i32 width, i32 height) {
-    RenderTarget& target = renderTarget;
-    glBindTexture(GL_TEXTURE_2D, target.colorTexture);
-    glTexImage2D(GL_TEXTURE_2D, 0, GL_RGB, width, height, 0, GL_RGB, GL_UNSIGNED_BYTE, nullptr);
-
-    glBindRenderbuffer(GL_RENDERBUFFER, target.rbo);
-    glRenderbufferStorage(GL_RENDERBUFFER, GL_DEPTH24_STENCIL8, width, height);
-
-    glBindTexture(GL_TEXTURE_2D, 0);
-    glBindRenderbuffer(GL_RENDERBUFFER, target.rbo);
-
-    glViewport(0, 0, width, height);
-}
-
+// region Materials
 void GL_InitMaterialParametersDefault3D(Material& material) {
     material.shaderName = "Default3D";
     const float shade = 0.96f;
     material.SetVectorDefinition(ID_COLOR_TINT, {shade, shade, shade, 1.0});
 
     material.SetFloatDefinition(ID_SMOOTHNESS, .25f);
-    material.SetFloatDefinition(ID_METALLIC, .25f);
+    material.SetFloatDefinition(ID_METALLIC, .1f);
+    material.SetFloatDefinition(ID_SSR_POWER, 0.0f);
 
     material.SetTextureDefinition(ID_BASE_MAP, "default_white");
     material.SetTextureDefinition(ID_NORMAL_MAP, "default_normal");
@@ -51,6 +39,7 @@ void GL_InitMaterialParametersDefault3D(Material& material) {
 
     material.SetVectorDefinition(ID_BASE_MAP_TO, {1.0f, 1.0f, 0.0f, 0.0f});
 }
+
 
 void GL_InitDefaultMaterials(AssetManager& assets) {
     // Default 3D
@@ -81,64 +70,6 @@ void GL_InitDefaultMaterials(AssetManager& assets) {
     }
 }
 
-
-void GL_BuildScreenRenderQuad(RenderTarget& target, i32 width, i32 height) {
-    float quadVertices[] = {
-        // positions   // uvs
-        -1.0f,  1.0f,  0.0f, 1.0f,
-        -1.0f, -1.0f,  0.0f, 0.0f,
-         1.0f, -1.0f,  1.0f, 0.0f,
-        -1.0f,  1.0f,  0.0f, 1.0f,
-         1.0f, -1.0f,  1.0f, 0.0f,
-         1.0f,  1.0f,  1.0f, 1.0f
-    };
-
-    glGenVertexArrays(1, &target.quadVAO);
-    glGenBuffers(1, &target.quadVBO);
-
-    glBindVertexArray(target.quadVAO);
-
-    glBindBuffer(GL_ARRAY_BUFFER, target.quadVBO);
-    glBufferData(GL_ARRAY_BUFFER, sizeof(quadVertices), &quadVertices, GL_STATIC_DRAW);
-    // Vertices
-    glEnableVertexAttribArray(0);
-    glVertexAttribPointer(0, 2, GL_FLOAT, GL_FALSE, 4 * sizeof(float), (const void*)(0 * sizeof(float) ));
-    // UVs
-    glEnableVertexAttribArray(1);
-    glVertexAttribPointer(1, 2, GL_FLOAT, GL_FALSE, 4 * sizeof(float), (const void*)(2 * sizeof(float) ));
-
-    // Create texture for the FB
-    glGenTextures(1, &target.colorTexture);
-    glBindTexture(GL_TEXTURE_2D, target.colorTexture);
-    glTexImage2D(GL_TEXTURE_2D, 0, GL_RGB, width, height, 0, GL_RGB, GL_UNSIGNED_BYTE, nullptr);
-    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
-    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
-
-    // Create framebuffer
-    glGenFramebuffers(1, &target.fbo);
-    glBindFramebuffer(GL_FRAMEBUFFER, target.fbo);
-    glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, target.colorTexture, 0);
-    // Create render-buffer for depth and stencil
-    glGenRenderbuffers(1, &target.rbo);
-    glBindRenderbuffer(GL_RENDERBUFFER, target.rbo);
-    glRenderbufferStorage(GL_RENDERBUFFER, GL_DEPTH24_STENCIL8, width, height);
-    glFramebufferRenderbuffer(GL_FRAMEBUFFER, GL_DEPTH_STENCIL_ATTACHMENT, GL_RENDERBUFFER, target.rbo);
-    if (glCheckFramebufferStatus(GL_FRAMEBUFFER) != GL_FRAMEBUFFER_COMPLETE) {
-        std::cerr << "ERROR::FRAMEBUFFER:: Framebuffer is not complete!\n";
-    }
-    // unbind into default state
-    glBindFramebuffer(GL_FRAMEBUFFER, 0);
-}
-
-
-void GL_InitGraphics(i32 width, i32 height) {
-    std::cout << "[Graphics] Init " << width << "height: " << height << std::endl;
-    GL_BuildScreenRenderQuad(renderTarget, width, height);
-}
-
-
-void GL_UpdateBackground(GameScene& scene) {
-}
 
 void GL_InitMaterialProperties(Material& material, AssetManager& assets) {
     material.didInit = true;
@@ -199,8 +130,148 @@ void GL_InitMaterialProperties(Material& material, AssetManager& assets) {
 
     std::cout << std::endl << std::endl;
 }
+// endregion
 
 
+// Render-Target Framebuffer
+void GL_ResizeRenderTarget(i32 width, i32 height) {
+    RenderTarget& target = renderTarget;
+    glViewport(0, 0, width, height);
+
+    glBindTexture(GL_TEXTURE_2D, target.colorTexture);
+    glTexImage2D(GL_TEXTURE_2D, 0, RENDER_TEX_STORE_FORMAT, width, height, 0, RENDER_TEX_IN_FORMAT, GL_FLOAT, nullptr);
+    glBindTexture(GL_TEXTURE_2D, target.normalTexture);
+    glTexImage2D(GL_TEXTURE_2D, 0, RENDER_TEX_STORE_FORMAT, width, height, 0, RENDER_TEX_IN_FORMAT, GL_FLOAT, nullptr);
+    glBindTexture(GL_TEXTURE_2D, target.depthTexture);
+    glTexImage2D(GL_TEXTURE_2D, 0, GL_DEPTH_COMPONENT24, width, height, 0, GL_DEPTH_COMPONENT, GL_FLOAT, nullptr);
+
+    // Unbind everything
+    glBindTexture(GL_TEXTURE_2D, 0);
+    // glBindRenderbuffer(GL_RENDERBUFFER, target.rbo);
+}
+
+
+void GL_BuildPostProcessStack(PostProcessStack& stack, i32 width, i32 height) {
+
+    // main PP-fbo
+    {
+        glGenFramebuffers(1, &stack.mainPostFBO);
+        glGenTextures(1, &stack.mainPostTexture);
+
+        glBindFramebuffer(GL_FRAMEBUFFER, stack.mainPostFBO);
+        glBindTexture(GL_TEXTURE_2D, stack.mainPostTexture);
+        glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA16F, width, height, 0, GL_RGBA, GL_FLOAT, nullptr);
+        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
+        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
+        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
+        glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, stack.mainPostTexture, 0);
+    }
+
+    // Bloom effect FBOs
+    glGenFramebuffers(2, stack.pingpongFBO);
+    glGenTextures(2, stack.pingpongTextures);
+    for (size_t i = 0; i < 2; i++) {
+        glBindFramebuffer(GL_FRAMEBUFFER, stack.pingpongFBO[i]);
+        glBindTexture(GL_TEXTURE_2D, stack.pingpongTextures[i]);
+        glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA16F, width, height, 0, GL_RGBA, GL_FLOAT, nullptr);
+        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
+        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+        // We clamp to edge so the blur doesn't wrap around the screen
+        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
+        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
+        glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, stack.pingpongTextures[i], 0);
+    }
+    glBindFramebuffer(GL_FRAMEBUFFER, 0);
+}
+
+
+void GL_BuildScreenRenderQuad(RenderTarget& target, i32 width, i32 height) {
+    float quadVertices[] = {
+        // positions   // uvs
+        -1.0f,  1.0f,  0.0f, 1.0f,
+        -1.0f, -1.0f,  0.0f, 0.0f,
+         1.0f, -1.0f,  1.0f, 0.0f,
+        -1.0f,  1.0f,  0.0f, 1.0f,
+         1.0f, -1.0f,  1.0f, 0.0f,
+         1.0f,  1.0f,  1.0f, 1.0f
+    };
+
+    glGenVertexArrays(1, &target.quadVAO);
+    glGenBuffers(1, &target.quadVBO);
+
+    glBindVertexArray(target.quadVAO);
+
+    glBindBuffer(GL_ARRAY_BUFFER, target.quadVBO);
+    glBufferData(GL_ARRAY_BUFFER, sizeof(quadVertices), &quadVertices, GL_STATIC_DRAW);
+    // Vertices
+    glEnableVertexAttribArray(0);
+    glVertexAttribPointer(0, 2, GL_FLOAT, GL_FALSE, 4 * sizeof(float), (const void*)(0 * sizeof(float) ));
+    // UVs
+    glEnableVertexAttribArray(1);
+    glVertexAttribPointer(1, 2, GL_FLOAT, GL_FALSE, 4 * sizeof(float), (const void*)(2 * sizeof(float) ));
+    // Create framebuffer
+    glGenFramebuffers(1, &target.fb);
+    glBindFramebuffer(GL_FRAMEBUFFER, target.fb);
+
+    {
+        // Depth Texture (Depth Attachment)
+        glGenTextures(1, &target.depthTexture);
+        glBindTexture(GL_TEXTURE_2D, target.depthTexture);
+        glTexImage2D(GL_TEXTURE_2D, 0, GL_DEPTH_COMPONENT24, width, height, 0, GL_DEPTH_COMPONENT, GL_FLOAT, nullptr);
+        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
+        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
+        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
+        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
+        glFramebufferTexture2D(GL_FRAMEBUFFER, GL_DEPTH_ATTACHMENT, GL_TEXTURE_2D, target.depthTexture, 0);
+    }
+    {
+        // Color texture (Attachment 0)
+        glGenTextures(1, &target.colorTexture);
+        glBindTexture(GL_TEXTURE_2D, target.colorTexture);
+        glTexImage2D(GL_TEXTURE_2D, 0, RENDER_TEX_STORE_FORMAT, width, height, 0, RENDER_TEX_IN_FORMAT, RENDER_TEX_TYPE, nullptr);
+        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
+        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+        // Bind to FB
+        glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, target.colorTexture, 0);
+    }
+    {
+        // Normals texture (Attachment 1)
+        glGenTextures(1, &target.normalTexture);
+        glBindTexture(GL_TEXTURE_2D, target.normalTexture);
+        glTexImage2D(GL_TEXTURE_2D, 0, RENDER_TEX_STORE_FORMAT, width, height, 0, RENDER_TEX_IN_FORMAT, RENDER_TEX_TYPE, nullptr);
+        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
+        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+        // Bind to FB
+        glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT1, GL_TEXTURE_2D, target.normalTexture, 0);
+    }
+    // Attach both textures to attachments
+    GLuint attachments[2] = { GL_COLOR_ATTACHMENT0, GL_COLOR_ATTACHMENT1 };
+    glDrawBuffers(2, attachments);
+
+    // // Create render-buffer for depth and stencil
+    // glGenRenderbuffers(1, &target.rbo);
+    // glBindRenderbuffer(GL_RENDERBUFFER, target.rbo);
+    // glRenderbufferStorage(GL_RENDERBUFFER, GL_DEPTH24_STENCIL8, width, height);
+    // glFramebufferRenderbuffer(GL_FRAMEBUFFER, GL_DEPTH_STENCIL_ATTACHMENT, GL_RENDERBUFFER, target.rbo);
+    // if (glCheckFramebufferStatus(GL_FRAMEBUFFER) != GL_FRAMEBUFFER_COMPLETE) {
+    //     std::cerr << "ERROR::FRAMEBUFFER:: Framebuffer is not complete!\n";
+    // }
+    // unbind into default state
+    glBindFramebuffer(GL_FRAMEBUFFER, 0);
+}
+
+
+void GL_InitGraphics(i32 width, i32 height) {
+    std::cout << "[Graphics] Init " << width << "height: " << height << std::endl;
+    GL_BuildScreenRenderQuad(renderTarget, width, height);
+    GL_BuildPostProcessStack(ppStack, width, height);
+}
+// endregion
+
+
+
+// region Graphics Allocation
 void GL_AllocateGraphicsSkybox(RenderSubMesh& obj) {
     float skyboxVertices[] = {
         -1.0f,  1.0f, -1.0f,  -1.0f, -1.0f, -1.0f,   1.0f, -1.0f, -1.0f,
@@ -271,7 +342,7 @@ void GL_AllocateGraphicsForObject(RenderObject& obj, AssetManager& assets)
             glEnableVertexAttribArray(attributeIdx);
             attributeIdx++;
         }
-        if (mesh.startIndexTangents >= 0) { // Tangents
+        if (mesh.startIndexTangent >= 0) { // Tangents
             glVertexAttribPointer(attributeIdx, 3, GL_FLOAT, GL_FALSE, stride, (const void*)(mesh.startIndexColor*sizeof(float))); // RGBA
             glEnableVertexAttribArray(attributeIdx);
             attributeIdx++;
@@ -284,7 +355,13 @@ void GL_AllocateGraphicsForObject(RenderObject& obj, AssetManager& assets)
     }
 }
 
+// endregion
 
+
+
+// region Rendering Scene
+
+// region Forward Rendering
 static int DBG_LVL = 0;
 static int MAX_DBG = 0;
 
@@ -292,7 +369,7 @@ static int logTimes = 0;
 static int MAX_LOG = 2;
 
 void BindRenderTarget(const RenderTarget& target) {
-    glBindFramebuffer(GL_FRAMEBUFFER, target.fbo);
+    glBindFramebuffer(GL_FRAMEBUFFER, target.fb);
 
     glEnable(GL_DEPTH_TEST);
     glDepthFunc(GL_LEQUAL);
@@ -301,12 +378,20 @@ void BindRenderTarget(const RenderTarget& target) {
     glCullFace(GL_FRONT);
 }
 
-
-
-
-
 void GL_ForwardRenderOpaques(GameScene& scene, Camera& camera, AssetManager& assets, ProjectSettings& settings) {
     DBG_LVL++;
+
+    mat4 viewProjMatrix;
+    glm_mat4_mul(camera.projectionMatrix, camera.viewMatrix, viewProjMatrix);
+
+    scene.transforms.GetItemRef(scene.mainLight.transformHandle);
+    Transform& cameraTransform = scene.transforms.GetItemRef(camera.transformHandle);
+    Transform& globalLightTransform = scene.transforms.GetItemRef(scene.mainLight.transformHandle);
+    vec3 cameraViewDir;
+    vec3 mainLightDir;
+    Transform_GetFrw(cameraTransform, cameraViewDir);
+    Transform_GetFrw(globalLightTransform, mainLightDir);
+
 
     vec4& backgroundColor = scene.backgroundColor;
     glClearColor(backgroundColor[0], backgroundColor[1], backgroundColor[2], backgroundColor[3]);
@@ -320,23 +405,12 @@ void GL_ForwardRenderOpaques(GameScene& scene, Camera& camera, AssetManager& ass
     glCullFace(GL_FRONT);
     glDisable(GL_BLEND); // no blending here
 
-    if (settings.Gamma_Correction) {
+    if (settings.UseGammaCorrection) {
         glEnable(GL_FRAMEBUFFER_SRGB);
     }
     else {
         glDisable(GL_FRAMEBUFFER_SRGB);
     }
-
-    mat4 viewProjMatrix;
-    glm_mat4_mul(camera.projectionMatrix, camera.viewMatrix, viewProjMatrix);
-
-    scene.transforms.GetItemRef(scene.mainLight.transformHandle);
-    Transform& cameraTransform = scene.transforms.GetItemRef(camera.transformHandle);
-    Transform& globalLightTransform = scene.transforms.GetItemRef(scene.mainLight.transformHandle);
-    vec3 cameraViewDir;
-    vec3 mainLightDir;
-    Transform_GetFrw(cameraTransform, cameraViewDir);
-    Transform_GetFrw(globalLightTransform, mainLightDir);
 
 
     auto& shaders = assets.shaders.GetVector();
@@ -437,10 +511,7 @@ void GL_ForwardRenderOpaques(GameScene& scene, Camera& camera, AssetManager& ass
     glUseProgram(0);
 }
 
-void ClearBackgroundNoSkyBox() {
-
-}
-
+void ClearBackgroundNoSkyBox() {}
 
 void GL_RenderSkybox(GameScene& scene, AssetManager& assets) {
     logTimes++;
@@ -480,7 +551,6 @@ void GL_RenderSkybox(GameScene& scene, AssetManager& assets) {
             glBindTexture(GL_TEXTURE_CUBE_MAP, texturePair.first);
             if (logTimes < MAX_LOG) {
             }
-
         }
         else {
             // error
@@ -512,20 +582,18 @@ void GL_RenderSkybox(GameScene& scene, AssetManager& assets) {
     glUseProgram(0);
 }
 
-
 void GL_ForwardRenderTransparent(GameScene& scene, Camera& camera, AssetManager& assets) {
 
     glEnable(GL_BLEND);
     glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
     glDepthMask(GL_FALSE);
-
-
 }
+// endregion
 
 
-
-void RenderScreenTexture(const RenderTarget& target, Shader& quadShader) {
-    glBindFramebuffer(GL_FRAMEBUFFER, 0); // default framebuffer
+// Helper. Called Before any screen space effect
+void GL_EnterStateRenderScreenQuad(GLuint frameBuffer = 0) {
+    glBindFramebuffer(GL_FRAMEBUFFER, frameBuffer); // default framebuffer
 
     glDisable(GL_BLEND);
     glDepthMask(GL_TRUE);
@@ -533,19 +601,9 @@ void RenderScreenTexture(const RenderTarget& target, Shader& quadShader) {
     glDisable(GL_DEPTH_TEST);
     glDisable(GL_STENCIL_TEST);
     glDisable(GL_CULL_FACE);
-
-    glClearColor(1.0, 1.0, 1.0, 1.0);
-    glClear(GL_COLOR_BUFFER_BIT);
-
-    auto shaderId = quadShader.GetShaderId();
-
-    // std::string name = std::string(quadShader.GetName());
-    // std::cout << "USING SHADER FOR QUAD: " <<shaderId << " Name: " << name << std::endl;
-
-    glUseProgram(shaderId);
-    glActiveTexture(GL_TEXTURE0);
-    glBindTexture(GL_TEXTURE_2D, target.colorTexture);
-    glUniform1i(glGetUniformLocation(shaderId, ID_UNIFORM_SCREEN_TEXTURE), 0);
+}
+// Helper. Called after any screen space effect completed
+void GL_RenderScreenQuad(const RenderTarget& target) {
     glBindVertexArray(target.quadVAO);
     glDrawArrays(GL_TRIANGLES, 0, 6);
     // cleanup
@@ -554,26 +612,265 @@ void RenderScreenTexture(const RenderTarget& target, Shader& quadShader) {
 }
 
 
+void RenderColorBufferToScreen(const RenderTarget& target, Shader& shader) {
+    GL_EnterStateRenderScreenQuad(0);
 
+    auto shaderId = shader.GetShaderId();
+
+    glUseProgram(shaderId);
+    glActiveTexture(GL_TEXTURE0);
+    glBindTexture(GL_TEXTURE_2D, target.colorTexture);
+    glUniform1i(glGetUniformLocation(shaderId, ID_UNIFORM_SCREEN_TEXTURE), 0);
+
+    GL_RenderScreenQuad(target);
+}
+
+
+void GL_RenderDepthOnly(const RenderTarget& target, Shader& shader, Camera& camera) {
+    GL_EnterStateRenderScreenQuad(0);
+    auto shaderId = shader.GetShaderId();
+    glUseProgram(shaderId);
+    glActiveTexture(GL_TEXTURE0);
+    glBindTexture(GL_TEXTURE_2D, target.depthTexture);
+    glUniform1i(glGetUniformLocation(shaderId, ID_DEPTH_TEX), 0);
+
+    glUniform1f(glGetUniformLocation(shaderId, ID_FAR_PLANE), camera.farPlane);
+    glUniform1f(glGetUniformLocation(shaderId, ID_NEAR_PLANE), camera.nearPlane);
+
+    GL_RenderScreenQuad(target);
+}
+
+void GL_RenderNormalsOnly(const RenderTarget& target, Shader& shader, Camera& camera) {
+    GL_EnterStateRenderScreenQuad(0);
+    auto shaderId = shader.GetShaderId();
+    glUseProgram(shaderId);
+    glActiveTexture(GL_TEXTURE0);
+    glBindTexture(GL_TEXTURE_2D, target.normalTexture);
+    glUniform1i(glGetUniformLocation(shaderId, ID_NORMALS_TEX), 0);
+
+    GL_RenderScreenQuad(target);
+}
+
+void GL_RenderColorsOnly(const RenderTarget& target, Shader& shader, Camera& camera) {
+    GL_EnterStateRenderScreenQuad(0);
+    auto shaderId = shader.GetShaderId();
+    glUseProgram(shaderId);
+    glActiveTexture(GL_TEXTURE0);
+    glBindTexture(GL_TEXTURE_2D, target.colorTexture);
+    glUniform1i(glGetUniformLocation(shaderId, ID_COLOR_TEX), 0);
+
+    GL_RenderScreenQuad(target);
+}
+
+
+void GL_RenderFinalOutput(const RenderTarget& target, AssetManager& assets) {
+    auto& shader = assets.GetShader(assets.shaderDefault2D);
+    auto shaderId = shader.GetShaderId();
+    GL_EnterStateRenderScreenQuad(0);
+    glUseProgram(shaderId);
+
+    auto loc = glGetUniformLocation(shaderId, "mainTex");
+    // std::cout << "ShaderID: " << shaderId << " Location of main tex: " << loc << ",  ppStack.mainPostTexture: " << ppStack.mainPostTexture << std::endl;
+    glActiveTexture(GL_TEXTURE0);
+    glBindTexture(GL_TEXTURE_2D, ppStack.mainPostTexture);
+    glUniform1i(loc, 0);
+
+    glBindVertexArray(target.quadVAO);
+    glDrawArrays(GL_TRIANGLES, 0, 6);
+}
+
+void GL_RenderPostProcess(const RenderTarget& target,
+                        const PostProcessStack& stack,
+                        AssetManager& assets,
+                        Camera& camera,
+                        ProjectSettings& settings) {
+
+    // glBindFramebuffer(GL_FRAMEBUFFER, 0); // default framebuffer
+    Shader& shaderSSR = assets.GetShader(assets.shaderSSR);
+    Shader& shaderBloomExtr = assets.GetShader(assets.shaderBloomExtract);
+    Shader& shaderBloomBlur  = assets.GetShader(assets.shaderBloomBlur);
+    Shader& finalCompose = assets.GetShader(assets.shaderBloomFinal);
+
+    GLuint currentFramebuffer = 0;
+
+    //SSR1
+    {
+        GL_EnterStateRenderScreenQuad(stack.mainPostFBO);
+        auto shaderId = shaderSSR.GetShaderId();
+        glUseProgram(shaderId);
+
+        shaderSSR.SetMat4(ID_UNIFORM_VIEW, camera.viewMatrix);
+        shaderSSR.SetMat4(ID_UNIFORM_PROJECTION, camera.projectionMatrix);
+        mat4 inv;
+        glm_mat4_inv(camera.projectionMatrix, inv);
+        shaderSSR.SetMat4(ID_UNIFORM_PROJECTION_INVERSE, inv);
+
+        glActiveTexture(GL_TEXTURE0);
+        glBindTexture(GL_TEXTURE_2D, target.colorTexture);
+        glUniform1i(glGetUniformLocation(shaderId, ID_COLOR_TEX), 0);
+
+        glActiveTexture(GL_TEXTURE1);
+        glBindTexture(GL_TEXTURE_2D, target.normalTexture);
+        glUniform1i(glGetUniformLocation(shaderId, ID_NORMALS_TEX), 1);
+
+        glActiveTexture(GL_TEXTURE2);
+        glBindTexture(GL_TEXTURE_2D, target.depthTexture);
+        glUniform1i(glGetUniformLocation(shaderId, ID_DEPTH_TEX), 2);
+
+        glUniform1f(glGetUniformLocation(shaderId, ID_FAR_PLANE), camera.farPlane);
+        glUniform1f(glGetUniformLocation(shaderId, ID_NEAR_PLANE), camera.nearPlane);
+
+        glBindVertexArray(target.quadVAO);
+        glDrawArrays(GL_TRIANGLES, 0, 6);
+    }
+
+    if (!settings.PostProcess_Bloom) {
+        // std::cout << "out now !" << std::endl;
+        GL_RenderFinalOutput(target, assets);
+        return;
+    }
+    // std::cout << "BLOOM!" << std::endl;
+
+    // Bloom
+    {
+        float BloomExposure = settings.BloomExposure;
+        float BloomThreshold = settings.BloomThreshold;
+
+        // Step 1: Extract bright spots data from previous frame buffer
+        {
+            GL_EnterStateRenderScreenQuad(stack.pingpongFBO[0]);
+            auto shaderId = shaderBloomExtr.GetShaderId();
+            glUseProgram(shaderId);
+            glBindTexture(GL_TEXTURE_2D, stack.mainPostTexture);
+            glUniform1i(glGetUniformLocation(shaderId, "u_MainTex"), 0);
+            glUniform1f(glGetUniformLocation(shaderId, "u_Threshold"), BloomThreshold);
+
+            glBindVertexArray(target.quadVAO);
+            glDrawArrays(GL_TRIANGLES, 0, 6);
+        }
+
+        // Step 2: Apply actual bloom and blur
+        bool horizontal = true;
+        bool first_iteration = true;
+        {
+            auto shaderIdBlur = shaderBloomBlur.GetShaderId();
+            glUseProgram(shaderIdBlur);
+            const i32 count = 10;
+
+            for (i32 i = 0; i < count; i++) {
+                // std::cout << " PingPong 0" << ppStack.pingpongTextures[0];
+                // std::cout << " PingPong 1" << ppStack.pingpongTextures[1];
+                // std::cout << std::endl;
+
+                glBindFramebuffer(GL_FRAMEBUFFER, ppStack.pingpongFBO[horizontal]);
+                glUniform1i(glGetUniformLocation(shaderIdBlur, "u_Horizontal"), horizontal);
+                glActiveTexture(GL_TEXTURE0);
+                u32 textureId = first_iteration ? ppStack.pingpongTextures[0] : ppStack.pingpongTextures[!horizontal];
+                glBindTexture(GL_TEXTURE_2D, textureId);
+                glUniform1i(glGetUniformLocation(shaderIdBlur, "u_Image"), 0);
+                glBindVertexArray(renderTarget.quadVAO);
+                glDrawArrays(GL_TRIANGLES, 0, 6);
+
+                horizontal = !horizontal;
+                if (first_iteration)
+                    first_iteration = false;
+            }
+        }
+
+        // Step 3: Output final result
+        {
+            GL_EnterStateRenderScreenQuad(0);
+            auto shaderId = finalCompose.GetShaderId();
+            glUseProgram(shaderId);
+
+            glActiveTexture(GL_TEXTURE0);
+            glBindTexture(GL_TEXTURE_2D, ppStack.mainPostTexture);
+            glUniform1i(glGetUniformLocation(shaderId, "u_MainTex"), 0);
+            glActiveTexture(GL_TEXTURE1);
+            glBindTexture(GL_TEXTURE_2D, ppStack.pingpongTextures[!horizontal]);
+            glUniform1i(glGetUniformLocation(shaderId, "u_BloomTex"), 1);
+            glUniform1f(glGetUniformLocation(shaderId, "u_Exposure"), BloomExposure);
+
+            glBindVertexArray(renderTarget.quadVAO);
+            glDrawArrays(GL_TRIANGLES, 0, 6);
+        }
+
+    }
+
+
+    // cleanup
+    glBindVertexArray(0);
+    glUseProgram(0);
+}
 
 void GL_RenderScene(Engine& engine) {
     BindRenderTarget(renderTarget);
+    auto& settings = engine.settings;
+    auto& camera = engine.scene.camera;
+    auto& assets = engine.assetManager;
 
-    glm_vec3_copy(engine.settings.Ambient_Light_Color, engine.scene.ambientLightColor);
-    glm_vec3_copy(engine.settings.Direct_Light_Color, engine.scene.mainLight.color);
-    engine.scene.ambientIntensity = engine.settings.Ambient_Light_Brightness;
-    engine.scene.mainLight.intensity = engine.settings.Direct_Light_Intensity;
+    bool postProcess = settings.PostProcess;
+    bool devDepths = settings.DevRenderDepths;
+    bool devNormals = settings.DevRenderNormals;
+    bool devUvs = settings.DevRenderUvs;
+
+    bool pp_ssr = settings.PostProcess_SSR;
+    bool pp_bloom = settings.PostProcess_Bloom;
+    bool pp_dof = settings.PostProcess_DOF;
+    bool pp_ssao = settings.PostProcess_SSAO;
+    bool pp_bw = settings.PostProcess_BW;
+
+    if (devDepths || devNormals || devUvs) {
+        postProcess = false;
+    }
+#ifdef DEBUG_FLAGS
+    std::cout<< "postProcess: " << postProcess << ", ";
+    std::cout<< "devDepths: " << devDepths << ", ";
+    std::cout<< "devNormals: " << devNormals << ", ";
+    std::cout<< "devUvs: " << devUvs << ", ";
+    std::cout<< "devUvs: " << devUvs << ", ";
+    std::cout<< "pp_ssr: "<< pp_ssr << ", ";
+    std::cout<< "pp_bloom: "<< pp_bloom << ", ";
+    std::cout<< "pp_dof: "<< pp_dof << ", ";
+    std::cout<< "pp_ssao: "<< pp_ssao << ", ";
+    std::cout<< "pp_bw: "<< pp_bw << ", ";
+    std::cout<<std::endl;
+#endif
 
 
-    GL_ForwardRenderOpaques(engine.scene, engine.scene.camera, engine.assetManager, engine.settings);
-    if (engine.settings.RenderSkyBox) {
-        GL_RenderSkybox(engine.scene, engine.assetManager);
+    glm_vec3_copy(settings.Ambient_Light_Color, engine.scene.ambientLightColor);
+    glm_vec3_copy(settings.Direct_Light_Color, engine.scene.mainLight.color);
+    engine.scene.ambientIntensity = settings.Ambient_Light_Brightness;
+    engine.scene.mainLight.intensity = settings.Direct_Light_Intensity;
+
+    // Opaque Pass
+    GL_ForwardRenderOpaques(engine.scene, camera, assets, settings);
+
+    // Skybox
+    if (settings.RenderSkyBox) {
+        GL_RenderSkybox(engine.scene, assets);
     }
     else {
         ClearBackgroundNoSkyBox();
     }
+    // Transparent Pass
+    // GL_ForwardRenderTransparent(engine.scene, camera, assets);
 
-    // GL_ForwardRenderTransparent(engine.scene, engine.scene.camera, engine.assetManager);
 
-    RenderScreenTexture(renderTarget, engine.assetManager.GetScreenRenderTextureShader());
+    if (devDepths) {
+        GL_RenderDepthOnly(renderTarget, assets.GetShader(assets.shaderDepthOnly), camera);
+    }
+    else if (devNormals) {
+        GL_RenderNormalsOnly(renderTarget, assets.GetShader(assets.shaderNormalsOnly), camera);
+    }
+    else if (postProcess) {
+        GL_RenderPostProcess(renderTarget, ppStack, assets, camera, settings);
+    }
+    else {
+         //Main Render Image without effects
+         RenderColorBufferToScreen(renderTarget, assets.GetScreenRenderTextureShader());
+    }
+
+
 }
+// endregion
