@@ -6,6 +6,8 @@
 #include "Engine.h"
 #include <iostream>
 
+#include "InstancedBuffer.h"
+
 
 constexpr f32 LightDebugScale = .25f;
 
@@ -55,8 +57,8 @@ void InitSceneMaterials(AssetManager& assets) {
         material.SetFloatDefinition(ID_SMOOTHNESS, .25f);
         material.SetFloatDefinition(ID_METALLIC, .25f);
 
-        material.SetTextureDefinition(ID_BASE_MAP, "PicnicTable_MTL_baseColor.png");
-        material.SetTextureDefinition(ID_NORMAL_MAP, "PicnicTable_MTL_normal.png");
+        material.SetTextureDefinition(ID_BASE_MAP, "PicnicTable_MTL_baseColor.png", 0);
+        material.SetTextureDefinition(ID_NORMAL_MAP, "PicnicTable_MTL_normal.png", 1);
         assets.LoadTexturesForMaterials(material);
         GL_InitMaterialProperties(material, assets);
     }
@@ -83,11 +85,11 @@ void InitSceneMaterials(AssetManager& assets) {
 
         material.SetFloatDefinition(ID_ALPHA_CLIP_VALUE, .5f);
         material.SetVectorDefinition(ID_COLOR_TINT, {0.99f, 0.99f, 0.99f, 1.0});
-        material.SetTextureDefinition(ID_BASE_MAP, "TAI_Atlas_1A.tga");
+        material.SetTextureDefinition(ID_BASE_MAP, "TAI_Atlas_1A.tga", 0);
 
         bool didLoad = assets.LoadTexturesForMaterials(material);
         if (didLoad == false) {
-            material.SetTextureDefinition(ID_BASE_MAP, ""); // default
+            material.SetTextureDefinition(ID_BASE_MAP, "", 0); // default
         }
 
         GL_InitMaterialProperties(material, assets);
@@ -151,6 +153,7 @@ void AddNewCustomObject_SingleMesh(std::string&& name, AssetManager& assets, Gam
     Handle hObject = scene.NewObject_SingleSubMesh(name.c_str(), hMesh, pos, rot, scale, hMaterial);
     scene.existingObjects.push_back(hObject);
 }
+
 
 
 void PlaceObjectsToScene(AssetManager& assets, GameScene& scene) {
@@ -248,30 +251,30 @@ void PlaceObjectsToScene(AssetManager& assets, GameScene& scene) {
         vec3 scale = {0.0065f, 0.0065f, 0.0065f};
         AddNewCustomObject_SingleMesh("Table 2", assets, scene, hMeshTable, h_mat_Table, pos, rot, scale);
     }
-    // Tree 1
-    {
-        vec3 pos = {-3.0, 0.0f, posTreeZ};
-        vec3 rot = {0.0f, 0.0f, 0.0f};
-        const float sf = 0.01f;
-        vec3 scale = {sf, sf, sf};
-        AddNewCustomObject_SingleMesh("Tree 1", assets, scene, hMeshTree, h_mat_Tree, pos, rot, scale);
-    }
-    // Tree 2
-    {
-        vec3 pos = {0.0, 0.0f, posTreeZ};
-        vec3 rot = {0.0f, 0.0f, 0.0f};
-        const float sf = 0.01f;
-        vec3 scale = {sf, sf, sf};
-        AddNewCustomObject_SingleMesh("Tree 2", assets, scene, hMeshTree, h_mat_Tree, pos, rot, scale);
-    }
-    // Tree 2
-    {
-        vec3 pos = {3.0, 0.0f, posTreeZ};
-        vec3 rot = {0.0f, 0.0f, 0.0f};
-        const float sf = 0.01f;
-        vec3 scale = {sf, sf, sf};
-        AddNewCustomObject_SingleMesh("Tree 3", assets, scene, hMeshTree, h_mat_Tree, pos, rot, scale);
-    }
+    // // Tree 1
+    // {
+    //     vec3 pos = {-3.0, 0.0f, posTreeZ};
+    //     vec3 rot = {0.0f, 0.0f, 0.0f};
+    //     const float sf = 0.01f;
+    //     vec3 scale = {sf, sf, sf};
+    //     AddNewCustomObject_SingleMesh("Tree 1", assets, scene, hMeshTree, h_mat_Tree, pos, rot, scale);
+    // }
+    // // Tree 2
+    // {
+    //     vec3 pos = {0.0, 0.0f, posTreeZ};
+    //     vec3 rot = {0.0f, 0.0f, 0.0f};
+    //     const float sf = 0.01f;
+    //     vec3 scale = {sf, sf, sf};
+    //     AddNewCustomObject_SingleMesh("Tree 2", assets, scene, hMeshTree, h_mat_Tree, pos, rot, scale);
+    // }
+    // // Tree 2
+    // {
+    //     vec3 pos = {3.0, 0.0f, posTreeZ};
+    //     vec3 rot = {0.0f, 0.0f, 0.0f};
+    //     const float sf = 0.01f;
+    //     vec3 scale = {sf, sf, sf};
+    //     AddNewCustomObject_SingleMesh("Tree 3", assets, scene, hMeshTree, h_mat_Tree, pos, rot, scale);
+    // }
 
     // Lamp 1
     {
@@ -297,6 +300,8 @@ void PlaceObjectsToScene(AssetManager& assets, GameScene& scene) {
         vec3 scale = {sf, sf, sf};
         AddNewCustomObject_SingleMesh("Lamp 3", assets, scene, hMeshLamp, h_mat_Metal, pos, rot, scale);
     }
+
+
 }
 
 
@@ -327,13 +332,47 @@ void InitSceneLights(GameScene& scene){
     Transform_RotateLocalX(lightTransform, 50.0);
 }
 
+
+static std::shared_ptr<InstancedBuffer> treesInstanceBuffer = std::make_shared<InstancedBuffer>();
+
+
+void InitInstanceBuffers(AssetManager& assets) {
+    const i32 count = 100;
+    const i32 entriesPerRow = 10;
+    const float spacing = 6.0f;
+    f32 startX = -1.0f * entriesPerRow * .5f * spacing;
+    f32 startY = -1.0f * entriesPerRow * .5f * spacing;
+
+    auto& buffer = *treesInstanceBuffer;
+    buffer.name = "Trees";
+    buffer.renderData.hMesh = hMeshTree;
+    buffer.renderData.hMaterial = h_mat_Tree;
+    GL_AllocateGraphicsForMesh(buffer.renderData, assets);
+
+    for (size_t i = 0; i < count; i++) {
+        i32 x = i % entriesPerRow;
+        i32 y = (i / entriesPerRow);
+        vec3 position = {startX + x * spacing, 0, startY + y * spacing};
+        versor rotation = {0.0f, 0.0f, 0.0f, 1.0f};
+        vec3 scale = {1., 1., 1.};
+        glm_vec3_scale(scale, 0.01f, scale);
+
+        auto& entry = buffer.AddNewOne();
+        Transform_UpdateMatrixOnly(entry.modelMatrix, position, rotation, scale);
+    }
+    GL_AddInstanceBuffer(treesInstanceBuffer);
+}
+
+
+
 void RunGameSceneInit() {
-    auto* engine = Engine::GetInstance();
+    auto& engine = *Engine::GetInstance();
 
-    LoadMeshes(engine->assetManager);
-    InitSceneMaterials(engine->assetManager);
-    PlaceCamera(engine->scene);
-    InitSceneLights(engine->scene);
+    LoadMeshes(engine.assetManager);
+    InitSceneMaterials(engine.assetManager);
+    PlaceCamera(engine.scene);
+    InitSceneLights(engine.scene);
 
-    PlaceObjectsToScene(engine->assetManager, engine->scene);
+    PlaceObjectsToScene(engine.assetManager, engine.scene);
+    InitInstanceBuffers(engine.assetManager);
 }

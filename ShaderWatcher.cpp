@@ -23,17 +23,18 @@ void ShaderWatcher::WatchSettingsFile() {
 }
 
 void ShaderWatcher::WatchShader(Shader& shader) {
-    std::string vertPath {};
-    std::string frgmPath {};
-    Shader::GetVertexFragmentPath(shader.GetName().c_str(), vertPath, frgmPath);
 
-    auto tv = GetFileTime(vertPath);
-    auto tf = GetFileTime(vertPath);
-
-    TrackedShader ts{shader.GetName(), tv, tf};
-
+    auto tv = GetFileTime(shader.GetVertexPath());
+    auto tf = GetFileTime(shader.GetFragmentPath());
+    TrackedShader entry{
+        shader.GetName(),
+        shader.GetVertexPath(),
+        shader.GetFragmentPath(),
+        tv,
+        tf
+    };
     std::lock_guard lock(queueMutex);
-    trackedShaders.push_back(ts);
+    trackedShaders.push_back(entry);
 }
 
 /// Executes on the main thread
@@ -48,11 +49,11 @@ void ShaderWatcher::ProcessReloads() {
 
     for (const auto& h : toReload) {
 #ifdef LOG_SHADER_WATCHER
-        std::cout << "[ShaderWatcher] Recompiling shader:" << h.shaderName << "\n";
+        std::cout << "[ShaderWatcher] Recompiling shader:" << h.name << "\n";
 #endif
-        auto handle = engine.assetManager.FindShaderByName(h.shaderName.c_str());
+        auto handle = engine.assetManager.FindShaderByName(h.name.c_str());
         if (handle.IsEmpty()) {
-            std::cerr << "failed to find shader: " << h.shaderName << std::endl;
+            std::cerr << "failed to find shader: " << h.name << std::endl;
             continue;
         }
         Shader& shader = engine.assetManager.shaders.GetItemRef(handle);
@@ -88,12 +89,8 @@ void ShaderWatcher::WatcherThreadLoop(std::stop_token stopToken) {
 
         for (auto& shader : trackedShaders) {
 
-            std::string vertPath {};
-            std::string frgmPath {};
-            Shader::GetVertexFragmentPath(shader.shaderName.c_str(), vertPath, frgmPath);
-
-            auto newVertTime = GetFileTime(vertPath);
-            auto newFragTime = GetFileTime(frgmPath);
+            auto newVertTime = GetFileTime(shader.pathV);
+            auto newFragTime = GetFileTime(shader.pathF);
             bool changed = false;
             if (newVertTime > shader.vertTime) {
                 shader.vertTime = newVertTime;
@@ -106,7 +103,7 @@ void ShaderWatcher::WatcherThreadLoop(std::stop_token stopToken) {
             if (changed) {
                 reloadQueue.push_back(shader);
 #ifdef LOG_SHADER_WATCHER
-                std::cout << "Change detected !!!!" << shader.shaderName << std::endl;
+                std::cout << "Change detected !!!!" << shader.name << std::endl;
 #endif
             }
         }

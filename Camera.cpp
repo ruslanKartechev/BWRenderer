@@ -56,3 +56,10 @@ void Camera::UpdateAspectRationWidthHeight(float width, float height) {
     else
         this->aspectRatio = 1;
 }
+void Camera::GetViewMatrixNoTranslation(mat4& in_matrix) {
+    glm_mat4_copy(viewMatrix, in_matrix);
+    in_matrix[3][0] = 0.0f;
+    in_matrix[3][1] = 0.0f;
+    in_matrix[3][2] = 0.0f;
+}
+

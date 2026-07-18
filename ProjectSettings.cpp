@@ -112,7 +112,8 @@ bool ProjectSettings::LoadProjectSettings(const std::string& filePath, ProjectSe
                 outSettings.BloomExposure = std::stof(value);
             else if (key == "BloomThreshold")
                 outSettings.BloomThreshold = std::stof(value);
-
+            else if (key == "GammaValue")
+                outSettings.GammaValue = std::stof(value);
 
             // Vectors
             else if (key == "Ambient_Light_Color")

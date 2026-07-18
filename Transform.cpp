@@ -17,9 +17,21 @@ void Transform_UpdateMatrices(Transform& transform)
     glm_mat4_identity(transform.modelMatrix);
     glm_translate(transform.modelMatrix, transform.position);
     mat4 rotMat;
+    glm_quat_normalize(transform.rotation);
     glm_quat_mat4(transform.rotation, rotMat);
     glm_mat4_mul(transform.modelMatrix, rotMat, transform.modelMatrix);
     glm_scale(transform.modelMatrix, transform.scale);
+}
+
+
+void Transform_UpdateMatrixOnly(mat4& modelMatrix, vec3& position, versor& rotation, vec3& scale) {
+    glm_mat4_identity(modelMatrix);
+    glm_translate(modelMatrix, position);
+    mat4 rotMat;
+    glm_quat_normalize(rotation);
+    glm_quat_mat4(rotation, rotMat);
+    glm_mat4_mul(modelMatrix, rotMat, modelMatrix);
+    glm_scale(modelMatrix, scale);
 }
 
 void Transform_SetLocalScaleVec(Transform& transform, vec3 scaleVec) {

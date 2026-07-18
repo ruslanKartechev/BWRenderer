@@ -3,33 +3,45 @@
 #include <vector>
 #include "Handle.h"
 #include "MyTypes.h"
+#include "vector4.h"
+#include "RenderMode.h"
 
-struct vector4 {
-    float x;
-    float y;
-    float z;
-    float w;
+using NameBindingPair = std::pair<std::string, i32>;
+using NameFloatPair = std::pair<std::string, f32>;
+using NameVectorPair = std::pair<std::string, vector4>;
+
+
+struct MaterialTextureProp {
+    Handle texHandle;
+    i32 layoutIndex;
+
+    MaterialTextureProp() {
+        texHandle = {0,0};
+        layoutIndex = {0};
+    }
+
+    MaterialTextureProp(Handle handle, i32 layoutIdx) {
+        texHandle = Handle(handle);
+        layoutIndex = layoutIdx;
+    }
 };
 
-enum class RenderMode {
-    Opaque = 0,
-    Transparent = 1,
-};
+
 
 class Material {
 public:
     // definition
     std::string shaderName;
-    std::vector<std::pair<std::string, float>> floatsDefinitions;
-    std::vector<std::pair<std::string, vector4>> vectorsDefinitions;
-    std::vector<std::pair<std::string, std::string>> texturesDefinitions;
+    std::vector<NameFloatPair> floatsDefinitions;
+    std::vector<NameVectorPair> vectorsDefinitions;
+    std::vector<std::pair< std::string, NameBindingPair > > texturesDefinitions;
 
     // runtime
     Handle shaderHandle;
     std::vector<std::pair<u32, float>> floats;
     std::vector<std::pair<u32, vector4>> vectors;
-    /// Pairs of <GL hUniform Location, handle to the texture rresource
-    std::vector<std::pair<u32, Handle>> textures;
+    /// Pairs of <GL_Binding_Location ; resource Handle>
+    std::vector<std::pair<u32, MaterialTextureProp>> textures;
     bool writeDepth = true;
     bool isTransparent = false;
     bool didInit = false;
@@ -37,6 +49,6 @@ public:
 
     void SetFloatDefinition(const std::string& name, float value);
     void SetVectorDefinition(const std::string& name, vector4 value);
-    void SetTextureDefinition(const std::string& name, std::string value);
+    void SetTextureDefinition(const std::string& name, std::string value, i32 binding);
 
 };

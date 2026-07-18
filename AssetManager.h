@@ -12,6 +12,8 @@ public:
 
     // Default Shaders
     Handle shaderDefault3D;
+    Handle shaderDefault3DLight;
+
     Handle shaderDefault2D;
     Handle shaderDefaultSkybox;
     Handle shaderFallback;
@@ -24,13 +26,13 @@ public:
 
     // Post Process Shaders
     Handle shaderSSR;
-    Handle shaderBloomExtract;
-    Handle shaderBloomBlur;
-    Handle shaderBloomFinal;
+    Handle shaderBloomDownsampleFirst;
+    Handle shaderBloomDownsample;
+    Handle shaderBloomUpSample;
+    Handle shaderBloomComposite;
 
     Handle shaderBlur;
     Handle shaderColorCorrection;
-
 
     // Default Materials
     Handle materialDebug;

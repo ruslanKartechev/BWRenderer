@@ -20,6 +20,7 @@ public:
 
     float BloomExposure = 1.2f;
     float BloomThreshold = 0.5f;
+    float GammaValue = 2.2;
 
     bool UseGammaCorrection;
     bool RenderShadows;

@@ -47,10 +47,13 @@ public:
     void SetInt(const std::string& name, int value) const;
     void SetFloat(const std::string& name, float value) const;
 
-    // cglm Type Uniform Setters
+    // CGLM Type Uniform Setters
+    void SetVec2(const std::string& name, const vec2 v) const;
     void SetVec3(const std::string& name, const vec3 v) const;
     void SetVec4(const std::string& name, const vec4 v) const;
     void SetMat4(const std::string& name, const mat4 m) const;
+
+    void SetTexture(const std::string& name, i32 textureID) const;
 
 private:
     // Helper function to check compilation/linking errors

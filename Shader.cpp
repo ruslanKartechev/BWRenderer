@@ -3,9 +3,9 @@
 #include "AssetManager.h"
 #include "Engine.h"
 #include "ProjectDefines.h"
-static constexpr int TYPE_VERTEX = 0;
-static constexpr int TYPE_FRAGMENT = 1;
-static constexpr int TYPE_PROGRAM = 2;
+static constexpr i32 TYPE_VERTEX = 0;
+static constexpr i32 TYPE_FRAGMENT = 1;
+static constexpr i32 TYPE_PROGRAM = 2;
 
 Shader::Shader() : m_isCompiled(false), m_hasErrors(false), m_ShaderID(0) {
 }
@@ -67,7 +67,7 @@ bool Shader::IsCompiled() const {
     return m_isCompiled;
 }
 
-unsigned int Shader::GetShaderId() const {
+u32 Shader::GetShaderId() const {
     return m_ShaderID;
 }
 
@@ -100,7 +100,7 @@ i32 Shader::Recompile() {
 }
 
 
-int Shader::LoadAndCompile() {
+i32 Shader::LoadAndCompile() {
     auto code = ReadAndCompile(m_ShaderID, m_vertexPath, m_fragmentPath);
     return code;
 }
@@ -164,8 +164,8 @@ i32 Shader::ReadAndCompile(u32& newId, const std::string& m_vertexPath, const st
 
 
 
-bool Shader::CheckCompileErrors(GLuint shaderID, int type) {
-    int success;
+bool Shader::CheckCompileErrors(GLuint shaderID, i32 type) {
+    i32 success;
     glGetShaderiv(shaderID, GL_COMPILE_STATUS, &success);
     if (success == GL_FALSE) {
         GLint logLength = 0;
@@ -182,42 +182,62 @@ bool Shader::CheckCompileErrors(GLuint shaderID, int type) {
 
 // region Basic Properties Set
 void Shader::SetBool(const std::string& name, bool value) const {
-    int loc = glGetUniformLocation(m_ShaderID, name.c_str());
+    i32 loc = glGetUniformLocation(m_ShaderID, name.c_str());
     if (loc >= 0)
-        glUniform1i(loc, (int)value);
+        glUniform1i(loc, (i32)value);
 }
 
-void Shader::SetInt(const std::string& name, int value) const {
-    int loc = glGetUniformLocation(m_ShaderID, name.c_str());
+void Shader::SetInt(const std::string& name, i32 value) const {
+    i32 loc = glGetUniformLocation(m_ShaderID, name.c_str());
     if (loc >= 0)
         glUniform1i(loc, value);
 }
 
 void Shader::SetFloat(const std::string& name, float value) const {
-    int loc = glGetUniformLocation(m_ShaderID, name.c_str());
+    i32 loc = glGetUniformLocation(m_ShaderID, name.c_str());
     if (loc >= 0)
         glUniform1f(loc, value);
+    // else
+        // std::cerr << "Failed to find Location: " << name << std::endl;
 }
 //endregion
 
 
 // region CGLM
+void Shader::SetVec2(const std::string& name, const vec2 v) const {
+    i32 loc = glGetUniformLocation(m_ShaderID, name.c_str());
+    if (loc >= 0) {
+        glUniform2fv(loc, 1, (const float*)v);
+    }
+    else {
+        std::cerr << " FAILED TO SET VEC 2 " << std::endl;
+    }
+}
+
 void Shader::SetVec3(const std::string& name, const vec3 v) const {
-    int loc = glGetUniformLocation(m_ShaderID, name.c_str());
+    i32 loc = glGetUniformLocation(m_ShaderID, name.c_str());
     if (loc >= 0) {
         glUniform3fv(loc, 1, (const float*)v);
     }
 }
+
 void Shader::SetVec4(const std::string& name, const vec4 v) const {
-    int loc = glGetUniformLocation(m_ShaderID, name.c_str());
+    i32 loc = glGetUniformLocation(m_ShaderID, name.c_str());
     if (loc >= 0) {
         glUniform4fv(loc, 1, (const float*)v);
     }
 }
+
 void Shader::SetMat4(const std::string& name, const mat4 m) const {
-    int loc = glGetUniformLocation(m_ShaderID, name.c_str());
+    i32 loc = glGetUniformLocation(m_ShaderID, name.c_str());
     if (loc >= 0)
         glUniformMatrix4fv(loc, 1, GL_FALSE, (const float*)m);
+}
+
+
+void Shader::SetTexture(const std::string& name, const i32 textureID) const {
+    i32 loc = glGetUniformLocation(m_ShaderID, name.c_str());
+    glUniform1i(loc, textureID);
 }
 
 void Shader::SetAcceptsLighting(bool value) {

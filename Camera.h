@@ -20,6 +20,7 @@ public:
 
     Camera();
 
+    void GetViewMatrixNoTranslation(mat4& in_matrix);
     void UpdateAspectRatio(float aspectRatio);
     void UpdateAspectRationWidthHeight(float width, float height);;
 

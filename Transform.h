@@ -10,6 +10,8 @@ typedef struct {
     vec3 scale;
 } Transform;
 
+void Transform_UpdateMatrixOnly(mat4& modelMatrix, vec3& position, versor& rotation, vec3& scale);
+
 void Transform_Init(Transform& transform);
 
 void Transform_UpdateMatrices(Transform& transform);

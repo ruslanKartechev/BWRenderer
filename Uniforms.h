@@ -1,7 +1,10 @@
 #pragma once
 
 inline const char* Shader_SkyboxDefault = "DefaultSkybox";
-inline const char* Shader_Default = "Default3D";
+inline const char* Shader_DefaultForward = "Default3D";
+inline const char* Shader_DefaultDeferredG = "Deferred_G_3D";
+inline const char* Shader_DefaultDeferredL = "Deferred_L_3D";
+
 inline const char* Shader_Default2D = "Default2D";
 
 inline const char* Shader_Debug = "DebugShader";

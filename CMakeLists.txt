@@ -65,6 +65,10 @@ add_executable( RenderGL  WIN32  main.cpp
         ProjectDefines.h
         ProjectSettings.h
         ProjectSettings.cpp
+        vector4.h
+        RenderMode.h
+        InstancedBuffer.cpp
+        InstancedBuffer.h
 )
 
 

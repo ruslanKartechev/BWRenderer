@@ -1,4 +1,4 @@
-#version 330 core
+#version 450 core
 
 layout(location = 0) out vec4 FragColor;
 layout(location = 1) out vec4 FragNormal;
@@ -15,13 +15,14 @@ in vec2 v_uv;
 in vec3 out_normal;
 in vec3 FragPos;
 
+layout(binding = 0) uniform sampler2D _BASE_MAP;
+
 uniform Light DIRECTIONAL_LIGHT;
 uniform vec3 VIEW_POS;
 uniform vec3 _AMBIENT_LIGHT_COLOR;
 uniform float _AMBIENT_LIGHT_INTENSITY;
 uniform float _SPECULAR_POWER;
 uniform float _ALPHA_CLIP_VALUE;
-uniform sampler2D _BASE_MAP;
 
 
 void main(){

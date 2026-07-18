@@ -300,10 +300,11 @@ Texture& AssetManager::GetNewTextureObject(Handle& outHandle) {
 
 bool AssetManager::LoadTexturesForMaterials(Material& material) {
     bool loaded = true;
-    for (auto& pair : material.texturesDefinitions) {
+    for (auto& definitionPair : material.texturesDefinitions) {
         Handle h = {};
+        std::string& path = definitionPair.second.first;
         Texture& texture = GetNewTextureObject(h);
-        bool didLoad = LoadTextureAtPath(texture, pair.second.c_str(), true);
+        bool didLoad = LoadTextureAtPath(texture, path.c_str(), true);
         loaded &= didLoad;
     }
     return loaded;

@@ -1,11 +1,11 @@
-#version 330 core
+#version 450 core
 layout (location = 0) out vec4 FragColor;
 
 in vec2 v_uv;
 
-uniform sampler2D u_ColorTex;
-uniform sampler2D u_NormalTex;
-uniform sampler2D u_DepthTex;
+layout(binding = 0) uniform sampler2D u_ColorTex;
+layout(binding = 1) uniform sampler2D u_NormalTex;
+layout(binding = 2) uniform sampler2D u_DepthTex;
 
 uniform mat4 MATRIX_PROJECTION;
 uniform mat4 MATRIX_INVERSE_PROJECTION;
@@ -14,18 +14,15 @@ uniform mat4 MATRIX_VIEW;
 uniform float NEAR_PLANE = 0.1;
 uniform float FAR_PLANE = 500.0;
 
-// --- RAYMARCHING PARAMETERS ---
+const float THICKNESS = 0.1;
 const float MARCH_STEP = 0.1;
-const float thickness = 0.2; // Failsafe so we don't reflect the back of an object behind the floor
 const int MARCH_MAX_STEPS = 100;
-const int binarySearchSteps = 10;
+const int BINARY_SEARCH_STEPS = 10;
 
-// Helper function: Converts 2D UV + Depth into a 3D View Space position
 vec3 ReconstructViewPos(vec2 uv, float depth) {
-    // Convert UV (0 to 1) to Normalized Device Coordinates (-1 to 1)
     vec4 ndc = vec4(uv * 2.0 - 1.0, depth * 2.0 - 1.0, 1.0);
     vec4 viewPos = MATRIX_INVERSE_PROJECTION * ndc;
-    return viewPos.xyz / viewPos.w; // Perspective divide
+    return viewPos.xyz / viewPos.w; // Perspective
 }
 
 vec2 RayToScreen(vec3 rayPos){
@@ -35,12 +32,11 @@ vec2 RayToScreen(vec3 rayPos){
     return screenUV;
 }
 
-vec3 binarySearch(vec3 rayPos, vec3 reflectDir){
+vec3 BinarySearch(vec3 rayPos, vec3 reflectDir){
     vec3 refinePos = rayPos;
     float refineStep = MARCH_STEP * 0.5;
-    refinePos -= reflectDir * refineStep; // Step back half a step to start
-    // 5 iterations is usually the sweet spot for performance vs. quality
-    for (int j = 0; j < binarySearchSteps; j++) {
+    refinePos -= reflectDir * refineStep; // Half step back
+    for (int j = 0; j < BINARY_SEARCH_STEPS; j++) {
         vec4 refProj = MATRIX_PROJECTION * vec4(refinePos, 1.0);
         refProj.xyz /= refProj.w;
         vec2 refUV = refProj.xy * 0.5 + 0.5;
@@ -49,14 +45,12 @@ vec3 binarySearch(vec3 rayPos, vec3 reflectDir){
         vec3 refGeom = ReconstructViewPos(refUV, refDepth);
         float refDiff = refinePos.z - refGeom.z;
 
-        refineStep *= 0.5; // Halve the step size for the next iteration
         if (refDiff < 0.0) {
-            // Still inside the object, step backward again
-            refinePos -= reflectDir * refineStep;
+            refinePos -= reflectDir * refineStep; // Still inside the object, step backward again
         } else {
-            // Stepped out into the air, step forward
-            refinePos += reflectDir * refineStep;
+            refinePos += reflectDir * refineStep; // Stepped out, so step forward
         }
+        refineStep *= 0.5; // Next iter. with smaller step
     }
     return refinePos;
 }
@@ -69,17 +63,13 @@ void main() {
     vec4 normalSample = texture(u_NormalTex, v_uv);
     vec3 baseColor = texture(u_ColorTex, v_uv).rgb;
     float power = normalSample.w;
-//    FragColor = vec4(power);
-//    return;
-
     if(power < 0.1){
         FragColor = vec4(baseColor, 1.0);
         return;
     }
-
     float depth = texture(u_DepthTex, v_uv).r;
-    // If depth is 1.0, it's the skybox. Don't reflect on the sky!
-    if (depth >= 0.9999) {
+    // Skybox check
+    if (depth >= 0.99) {
         FragColor = vec4(baseColor, 1.0);
         return;
     }
@@ -91,7 +81,7 @@ void main() {
     vec3 reflectDir = normalize(reflect(viewDir, viewNormal));
 
     // Add start bias
-    const float bias = 1.5;
+    const float bias = 2;
     vec3 rayPos = viewPos + (viewNormal * MARCH_STEP * bias); // val 2.0 ??
     float jitter = RandomNoise(gl_FragCoord.xy);
     rayPos += reflectDir * MARCH_STEP * jitter;
@@ -103,26 +93,23 @@ void main() {
     for(int i = 0; i < MARCH_MAX_STEPS; i++) {
         rayPos += reflectDir * MARCH_STEP;
         vec2 screenUV = RayToScreen(rayPos);
-
         // safety offscreen
         if(screenUV.x < 0.0 || screenUV.x > 1.0 || screenUV.y < 0.0 || screenUV.y > 1.0) {
             break;
         }
         // safety deadzone
-        if (distance(screenUV, v_uv) < 0.015) {
+        if (distance(screenUV, v_uv) < 0.01) {
             continue;
         }
-
         float sampleDepth = texture(u_DepthTex, screenUV).r;
         if (sampleDepth >= 0.9999) {
             continue;
         }
-
         vec3 geometryPos = ReconstructViewPos(screenUV, sampleDepth);
         float depthDiff = rayPos.z - geometryPos.z;
         // potential surface hit
-        if (depthDiff < 0.0 && depthDiff > -thickness) {
-            vec3 refinePos = binarySearch(rayPos, reflectDir);
+        if (depthDiff < 0.0 && depthDiff > -THICKNESS) {
+            vec3 refinePos = BinarySearch(rayPos, reflectDir);
             // Recalculate the final UV after honing in on the exact spot
             vec4 finalProj = MATRIX_PROJECTION * vec4(refinePos, 1.0);
             finalProj.xyz /= finalProj.w;
@@ -136,12 +123,13 @@ void main() {
             }
             reflectionColor = texture(u_ColorTex, screenUV).rgb;
             // Edge Fading
-            vec2 edgeFade = smoothstep(0.0, 0.05, screenUV) * (1.0 - smoothstep(0.95, 1.0, screenUV));
+            const float b = 0.05;
+            vec2 edgeFade = smoothstep(0.0, b, screenUV) * (1.0 - smoothstep(1.0 - b, 1.0, screenUV));
             reflectionMask = edgeFade.x * edgeFade.y;
             break;
         }
     }
 
-    vec3 finalColor = baseColor + (reflectionColor * reflectionMask * 0.5);
+    vec3 finalColor = baseColor + (reflectionColor * reflectionMask * 0.11);
     FragColor = vec4(finalColor, 1.0);
 }

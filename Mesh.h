@@ -1,7 +1,7 @@
 #pragma once
 #include <string>
 
-typedef struct Mesh{
+struct Mesh{
     float* vertexData = nullptr;
     int* indexData = nullptr;
     std::string name = {};
@@ -14,9 +14,7 @@ typedef struct Mesh{
     int startIndexColor = 0;
     int startIndexNormals = 0;
     int startIndexTangent = 0;
-
-
-} Mesh;
+};
 
 
 void Mesh_Print(Mesh& mesh);

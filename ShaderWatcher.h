@@ -1,5 +1,4 @@
 #pragma once
-
 #include <filesystem>
 #include <thread>
 #include <mutex>
@@ -12,7 +11,10 @@
 namespace fs = std::filesystem;
 
 struct TrackedShader {
-    std::string shaderName;
+    std::string name;
+    std::string pathV;
+    std::string pathF;
+
     fs::file_time_type vertTime;
     fs::file_time_type fragTime;
 };

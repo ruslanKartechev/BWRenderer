@@ -15,12 +15,10 @@ Engine* Engine::GetInstance() {
 
 void Engine::UpdateSettings() {
     bool didParse = ProjectSettings::LoadProjectSettings(AssetManager::GetProjectSettingsPath(), settings);
-
     if (didParse) {
-        std::cout << "[Engine] Parsed project settings file!";
+        std::cout << "[Engine] Parsed project settings file!" << std::endl;
     }
     else {
         std::cerr << "Failed to parse the config file ((" << std::endl;
     }
-
 }
