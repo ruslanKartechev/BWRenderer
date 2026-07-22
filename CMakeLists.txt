@@ -69,6 +69,12 @@ add_executable( RenderGL  WIN32  main.cpp
         RenderMode.h
         InstancedBuffer.cpp
         InstancedBuffer.h
+        terrain.cpp
+        terrain.h
+        NoiseGenerator.cpp
+        NoiseGenerator.h
+        uiObject.cpp
+        uiObject.h
 )
 
 

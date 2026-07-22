@@ -1,25 +1,23 @@
-#include "GraphicsGL.h"
 #include <iostream>
-#include <ostream>
+#include "GraphicsGL.h"
 #include "Material.h"
 #include "Uniforms.h"
 #include "Camera.h"
 #include "Engine.h"
+#include "Terrain.h"
 #include "cglm/cglm.h"
 
 #define DEBUG_FLAGS__
 
-class Engine;
-static int DidLogTransforms;
 
 static RenderTarget renderTarget = {};
 static PostProcessStack ppStack = {};
 static std::vector<std::shared_ptr<InstancedBuffer> > InstancedBuffers = {};
 
 
-static u32 RENDER_TEX_TYPE = GL_FLOAT;
-static i32 RENDER_TEX_STORE_FORMAT = GL_RGBA16F;
-static u32 RENDER_TEX_IN_FORMAT = GL_RGBA;
+static constexpr u32 RENDER_TEX_TYPE = GL_FLOAT;
+static constexpr i32 RENDER_TEX_STORE_FORMAT = GL_RGBA16F;
+static constexpr u32 RENDER_TEX_IN_FORMAT = GL_RGBA;
 
 
 // region Helpers
@@ -130,7 +128,7 @@ void GL_InitDefaultMaterials(AssetManager& assets) {
 void GL_InitMaterialProperties(Material& material,
                                AssetManager& assets) {
     material.didInit = true;
-    std::cout << "[Graphics][MaterialProperties] Shader: " << material.shaderName << std::endl;
+    std::cout << "\n[Graphics][MaterialProperties] Shader: " << material.shaderName << std::endl;
     material.shaderHandle = assets.FindShaderByName(material.shaderName.c_str());
 
     if (material.shaderHandle.IsEmpty()) {
@@ -144,16 +142,14 @@ void GL_InitMaterialProperties(Material& material,
     for (auto i = 0; i < material.floatsDefinitions.size(); i++) {
         auto& paramName = material.floatsDefinitions[i].first;
         u32 uniformLocation = glGetUniformLocation(shaderId, paramName.c_str());
-        std::cout << "Material.Float] [shader " << shaderId << "] Name: " << paramName << ", uniformLocation: " << uniformLocation << std::endl;
+        std::cout<<"[Material.Float] [shader "<<shaderId<<"] Name: "<<paramName<<", uniformLocation: "<<uniformLocation<<std::endl;
         material.floats.emplace_back(uniformLocation, material.floatsDefinitions[i].second);
     }
 
     for (auto i = 0; i < material.vectorsDefinitions.size(); i++) {
         auto& paramName = material.vectorsDefinitions[i].first;
-
         i32 uniformLocation = glGetUniformLocation(shaderId, paramName.c_str());
         std::cout << "[Material.Vector] [shader " << shaderId << "] Name: " << paramName << ", uniformLocation: " << uniformLocation << std::endl;
-
         material.vectors.emplace_back(uniformLocation, material.vectorsDefinitions[i].second);
     }
 
@@ -162,6 +158,8 @@ void GL_InitMaterialProperties(Material& material,
         auto& paramName = material.texturesDefinitions[i].first;
         auto& nameBindingPair = material.texturesDefinitions[i].second;
         auto& assetName = nameBindingPair.first;
+        i32 uniformLocation = nameBindingPair.second;
+
         Handle textureHandle = {};
         if (assetName.empty()) {
             textureHandle.Copy(assets.defaultWhiteTexture);
@@ -173,14 +171,14 @@ void GL_InitMaterialProperties(Material& material,
         if (textureHandle.IsEmpty()) {
             textureHandle.Copy(assets.defaultWhiteTexture);
             if (!assetName.empty()) {
-                // Empty name is intentional for DefaultTexture, so don't log in that case
-                std::cerr << "Failed to find texture: '" << assetName << "'" << std::endl;
+                std::cerr << "[Material.Texture] Failed to find texture: '" << assetName << "'" << std::endl;
             }
         }
-        // i32 uniformLocation = glGetUniformLocation(shaderId, paramName.c_str());
-        i32 uniformLocation = nameBindingPair.second;
-        material.textures.emplace_back(uniformLocation, MaterialTextureProp(textureHandle, uniformLocation));
+        else {
+            std::cout<<"[Material.Texture] Found Texture: " << assetName<<std::endl;
+        }
 
+        material.textures.emplace_back(uniformLocation, MaterialTextureProp(textureHandle, uniformLocation));
         std::cout << "[Material.Texture] [shader " << shaderId << "] Param: " << paramName << " Asset: " << assetName << " uniformLocation: " << uniformLocation << std::endl;
     }
     glUseProgram(0);
@@ -411,11 +409,46 @@ void GL_InitGraphics(i32 width,
 // endregion
 
 
-
-
 // region Graphics Allocation
 void GL_AllocateGraphicsSkybox(RenderSubMesh& obj) {
-    float skyboxVertices[] = {-1.0f, 1.0f, -1.0f, -1.0f, -1.0f, -1.0f, 1.0f, -1.0f, -1.0f, 1.0f, -1.0f, -1.0f, 1.0f, 1.0f, -1.0f, -1.0f, 1.0f, -1.0f, -1.0f, -1.0f, 1.0f, -1.0f, -1.0f, -1.0f, -1.0f, 1.0f, -1.0f, -1.0f, 1.0f, -1.0f, -1.0f, 1.0f, 1.0f, -1.0f, -1.0f, 1.0f, 1.0f, -1.0f, -1.0f, 1.0f, -1.0f, 1.0f, 1.0f, 1.0f, 1.0f, 1.0f, 1.0f, 1.0f, 1.0f, 1.0f, -1.0f, 1.0f, -1.0f, -1.0f, -1.0f, -1.0f, 1.0f, -1.0f, 1.0f, 1.0f, 1.0f, 1.0f, 1.0f, 1.0f, 1.0f, 1.0f, 1.0f, -1.0f, 1.0f, -1.0f, -1.0f, 1.0f, -1.0f, 1.0f, -1.0f, 1.0f, 1.0f, -1.0f, 1.0f, 1.0f, 1.0f, 1.0f, 1.0f, 1.0f, -1.0f, 1.0f, 1.0f, -1.0f, 1.0f, -1.0f, -1.0f, -1.0f, -1.0f, -1.0f, -1.0f, 1.0f, 1.0f, -1.0f, -1.0f, 1.0f, -1.0f, -1.0f, -1.0f, -1.0f, 1.0f, 1.0f, -1.0f, 1.0f};
+    float skyboxVertices[] = {
+        -1.0f, 1.0f, -1.0f,
+        -1.0f, -1.0f, -1.0f,
+        1.0f, -1.0f, -1.0f,
+        1.0f, -1.0f, -1.0f,
+        1.0f, 1.0f, -1.0f,
+        -1.0f, 1.0f, -1.0f,
+        -1.0f, -1.0f, 1.0f,
+        -1.0f, -1.0f, -1.0f,
+        -1.0f, 1.0f, -1.0f,
+        -1.0f, 1.0f, -1.0f,
+        -1.0f, 1.0f, 1.0f,
+        -1.0f, -1.0f, 1.0f,
+        1.0f, -1.0f, -1.0f,
+        1.0f, -1.0f, 1.0f,
+        1.0f, 1.0f, 1.0f,
+        1.0f, 1.0f, 1.0f,
+        1.0f, 1.0f, -1.0f,
+        1.0f, -1.0f, -1.0f,
+        -1.0f, -1.0f, 1.0f,
+        -1.0f, 1.0f, 1.0f,
+        1.0f, 1.0f, 1.0f,
+        1.0f, 1.0f, 1.0f,
+        1.0f, -1.0f, 1.0f,
+        -1.0f, -1.0f, 1.0f,
+        -1.0f, 1.0f, -1.0f,
+        1.0f,  1.0f, -1.0f,
+        1.0f, 1.0f, 1.0f,
+        1.0f, 1.0f, 1.0f,
+        -1.0f, 1.0f, 1.0f,
+        -1.0f, 1.0f, -1.0f,
+        -1.0f, -1.0f, -1.0f,
+        -1.0f, -1.0f, 1.0f,
+        1.0f, -1.0f, -1.0f,
+        1.0f, -1.0f, -1.0f,
+        -1.0f, -1.0f, 1.0f,
+        1.0f, -1.0f, 1.0f
+    };
     glGenVertexArrays(1, &obj.vao);
     glGenBuffers(1, &obj.vbo);
     glBindVertexArray(obj.vao);
@@ -427,7 +460,7 @@ void GL_AllocateGraphicsSkybox(RenderSubMesh& obj) {
 }
 
 
-void GL_AllocateGraphicsForMesh(RenderSubMesh& meshRenderData,
+void GL_AllocateGraphicsMesh(RenderSubMesh& meshRenderData,
                                 AssetManager& assets) {
     Mesh& mesh = assets.meshes.GetItemRef(meshRenderData.hMesh);
 
@@ -439,36 +472,34 @@ void GL_AllocateGraphicsForMesh(RenderSubMesh& meshRenderData,
     glGenBuffers(1, &vbo);
     glGenBuffers(1, &ebo);
     glBindVertexArray(vao);
-
     glBindBuffer(GL_ARRAY_BUFFER, vbo);
     glBufferData(GL_ARRAY_BUFFER, sizeof(float) * mesh.vertexDataCount, mesh.vertexData, GL_DYNAMIC_DRAW);
-
     glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, ebo);
     glBufferData(GL_ELEMENT_ARRAY_BUFFER, sizeof(int) * mesh.indexCount, mesh.indexData, GL_DYNAMIC_DRAW);
 
-    int stride = mesh.stride * sizeof(float);
+    int strideBytes = mesh.stride * sizeof(float);
     int attributeIdx = 0;
-    glVertexAttribPointer(attributeIdx, 3, GL_FLOAT, GL_FALSE, stride, (const void*) 0); // XYZ
+    glVertexAttribPointer(attributeIdx, 3, GL_FLOAT, GL_FALSE, strideBytes, (const void*)(mesh.startIndexVertex * sizeof(float) )); // XYZ
     glEnableVertexAttribArray(attributeIdx);
     attributeIdx++;
     if (mesh.startIndexUV >= 0) {
-        glVertexAttribPointer(attributeIdx, 2, GL_FLOAT, GL_FALSE, stride, (const void*) (mesh.startIndexUV * sizeof(float))); // UV
+        glVertexAttribPointer(attributeIdx, 2, GL_FLOAT, GL_FALSE, strideBytes, (const void*) (mesh.startIndexUV * sizeof(float) )); // UV
         glEnableVertexAttribArray(attributeIdx);
         attributeIdx++;
     }
     if (mesh.startIndexNormals >= 0) {
-        glVertexAttribPointer(attributeIdx, 3, GL_FLOAT, GL_FALSE, stride, (const void*) (mesh.startIndexNormals * sizeof(float))); // XYZ normals
+        glVertexAttribPointer(attributeIdx, 3, GL_FLOAT, GL_FALSE, strideBytes, (const void*) (mesh.startIndexNormals * sizeof(float))); // XYZ normals
         glEnableVertexAttribArray(attributeIdx);
         attributeIdx++;
     }
     if (mesh.startIndexColor >= 0) {
-        glVertexAttribPointer(attributeIdx, 4, GL_FLOAT, GL_FALSE, stride, (const void*) (mesh.startIndexColor * sizeof(float))); // RGBA
+        glVertexAttribPointer(attributeIdx, 4, GL_FLOAT, GL_FALSE, strideBytes, (const void*) (mesh.startIndexColor * sizeof(float))); // RGBA
         glEnableVertexAttribArray(attributeIdx);
         attributeIdx++;
     }
     if (mesh.startIndexTangent >= 0) {
         // Tangents
-        glVertexAttribPointer(attributeIdx, 3, GL_FLOAT, GL_FALSE, stride, (const void*) (mesh.startIndexColor * sizeof(float))); // RGBA
+        glVertexAttribPointer(attributeIdx, 3, GL_FLOAT, GL_FALSE, strideBytes, (const void*) (mesh.startIndexColor * sizeof(float))); // RGBA
         glEnableVertexAttribArray(attributeIdx);
         attributeIdx++;
     }
@@ -480,6 +511,104 @@ void GL_AllocateGraphicsForMesh(RenderSubMesh& meshRenderData,
 }
 
 
+
+void GL_AllocateGUIQuad(UIObject& obj) {
+    int stride = 4;
+    int startIndexVertex = 0;
+    int startIndexUV = 2;
+
+    int vertexDataCount = 4 * stride;
+    int indexCount = 6;
+    float* vertexData = new float[] {
+        // POSITION    // UV
+        0.0f,  0.0f,   0.0f, 0.0f, // 0
+        1.0f,  0.0f,   1.0f, 0.0f, // 1
+        1.0f,  1.0f,   1.0f, 1.0f, // 2
+        0.0f,  1.0f,   0.0f, 1.0f, // 3
+    };
+    int* indexData = new int[] {
+        0, 1, 2, 0, 2, 3
+    };
+
+    GLuint vao;
+    GLuint vbo;
+    GLuint ebo;
+    int strideBytes = stride * sizeof(float);
+
+    glGenVertexArrays(1, &vao);
+    glGenBuffers(1, &vbo);
+    glGenBuffers(1, &ebo);
+    glBindVertexArray(vao);
+    // Positions
+    glBindBuffer(GL_ARRAY_BUFFER, vbo);
+    glBufferData(GL_ARRAY_BUFFER, sizeof(float) * vertexDataCount, vertexData, GL_DYNAMIC_DRAW);
+    // Triangles
+    glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, ebo);
+    glBufferData(GL_ELEMENT_ARRAY_BUFFER, sizeof(int) * indexCount, indexData, GL_DYNAMIC_DRAW);
+
+    glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, strideBytes, (const void*)(startIndexVertex * sizeof(float) )); // XYZ
+    glEnableVertexAttribArray(0);
+
+    glVertexAttribPointer(1, 2, GL_FLOAT, GL_FALSE, strideBytes, (const void*) (startIndexUV * sizeof(float) )); // UV
+    glEnableVertexAttribArray(1);
+
+    obj.vao = vao;
+    obj.vbo = vbo;
+    obj.ebo = ebo;
+}
+
+
+void GL_AllocateGraphicsTerrain(Terrain& terrain) {
+
+    GLuint vao;
+    GLuint vbo;
+    GLuint ebo;
+
+    glGenVertexArrays(1, &vao);
+    glGenBuffers(1, &vbo);
+    glGenBuffers(1, &ebo);
+    glBindVertexArray(vao);
+    glBindBuffer(GL_ARRAY_BUFFER, vbo);
+    glBufferData(GL_ARRAY_BUFFER, sizeof(float) * terrain.vertexDataCount, terrain.GetVertexDataPtr(), GL_DYNAMIC_DRAW);
+    glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, ebo);
+    glBufferData(GL_ELEMENT_ARRAY_BUFFER, sizeof(int) * terrain.indexCount, terrain.GetIndexDataPtr(), GL_DYNAMIC_DRAW);
+
+    int stride = terrain.stride * sizeof(float);
+    int attributeIdx = 0;
+
+    // Vertex Positions
+    glVertexAttribPointer(attributeIdx, 3, GL_FLOAT, GL_FALSE, stride, (const void*)(terrain.startIndexVertex * sizeof(float) )); // XYZ
+    glEnableVertexAttribArray(attributeIdx);
+    attributeIdx++;
+    // Vertex UVs
+    if (terrain.startIndexUV >= 0) {
+        glVertexAttribPointer(attributeIdx, 2, GL_FLOAT, GL_FALSE, stride, (const void*)(terrain.startIndexUV * sizeof(float))); // UV
+        glEnableVertexAttribArray(attributeIdx);
+        attributeIdx++;
+    }
+    if (terrain.startIndexNormals >= 0) {
+        glVertexAttribPointer(attributeIdx, 3, GL_FLOAT, GL_FALSE, stride, (const void*)(terrain.startIndexNormals * sizeof(float))); // XYZ normals
+        glEnableVertexAttribArray(attributeIdx);
+        attributeIdx++;
+    }
+    if (terrain.startIndexColor >= 0) {
+        glVertexAttribPointer(attributeIdx, 4, GL_FLOAT, GL_FALSE, stride, (const void*)(terrain.startIndexColor * sizeof(float))); // RGBA
+        glEnableVertexAttribArray(attributeIdx);
+        attributeIdx++;
+    }
+    if (terrain.startIndexTangent >= 0) {
+        glVertexAttribPointer(attributeIdx, 3, GL_FLOAT, GL_FALSE, stride, (const void*)(terrain.startIndexColor * sizeof(float))); // RGBA
+        glEnableVertexAttribArray(attributeIdx);
+        attributeIdx++;
+    }
+
+    glBindVertexArray(0);
+    terrain.vao = vao;
+    terrain.vbo = vbo;
+    terrain.ebo = ebo;
+}
+
+
 void GL_AllocateGraphicsForObject(RenderObject& obj,
                                   AssetManager& assets) {
     obj.subMeshses.reserve(1);
@@ -487,22 +616,14 @@ void GL_AllocateGraphicsForObject(RenderObject& obj,
         obj.subMeshses.resize(1);
     }
     for (auto& meshRenderData: obj.subMeshses) {
-        GL_AllocateGraphicsForMesh(meshRenderData, assets);
+        GL_AllocateGraphicsMesh(meshRenderData, assets);
     }
 }
-
 // endregion
 
 
-// region Rendering Scene
-
 
 // region Rendering Loop
-static int DBG_LVL = 0;
-static int MAX_DBG = 0;
-static int logTimes = 0;
-static int MAX_LOG = 2;
-
 void BindRenderTarget(const RenderTarget& target) {
     glBindFramebuffer(GL_FRAMEBUFFER, target.mainFB);
 
@@ -513,11 +634,12 @@ void BindRenderTarget(const RenderTarget& target) {
     glCullFace(GL_FRONT);
 }
 
+
 void GL_UseMaterial(Material& material,
                     u32 shaderId,
                     AssetManager& assets) {
-    glUseProgram(shaderId);
 
+    glUseProgram(shaderId);
     for (auto& floatPair: material.floats) {
         glUniform1f(floatPair.first, floatPair.second);
     }
@@ -527,22 +649,31 @@ void GL_UseMaterial(Material& material,
         glUniform4fv(vecPair.first, 1, (const float*) vec);
     }
 
-    u32 textureNumber = 0;
     for (auto& texturePair: material.textures) {
         i32 binding = texturePair.first;
         MaterialTextureProp& texProp = texturePair.second;
-        auto& texture = assets.textures.GetItemRef(texProp.texHandle);
+        Texture& texture = assets.textures.GetItemRef(texProp.texHandle);
+
         if (assets.textures.IsNullItem(texture)) {
-            // std::cerr<<"Failed to load texture"<<std::endl;
+            // std::cerr<<"Failed to load texture"<<std::endl;I
             continue;
         }
-        auto type = texture.pixelFormat == 0 ? GL_TEXTURE_2D : GL_TEXTURE_CUBE_MAP;
-        auto texActive = GL_TEXTURE0 + binding;
-        glActiveTexture(texActive);
+        auto type = GL_TEXTURE_2D;
+        switch (texture.pixelFormat) {
+            case 0:
+                type = GL_TEXTURE_2D;
+                break;
+            case 1:
+                type = GL_TEXTURE_2D;
+                break;
+            case 2:
+                type = GL_TEXTURE_CUBE_MAP;
+                break;
+        }
+        auto texBindingLocation = GL_TEXTURE0 + binding;
+        glActiveTexture(texBindingLocation);
         glBindTexture(type, texture.glHandle);
-        // printf("[R] [%s] TexActive: %d, Uniform: %d, Texture-Index %d, \n\n", texture.name, texActive, binding, texProp.texHandle.index);
-        // glUniform1i(texParamName, textureNumber);
-        textureNumber++;
+        // printf("[R] [%s] TexActive: %d, UniformBinding: %d, TextureAssetIndex %d, glHandle %d \n", texture.name, texBindingLocation, binding, texProp.texHandle.index, texture.glHandle);
     }
 }
 
@@ -551,9 +682,6 @@ void GL_OpaquePass(GameScene& scene,
                    Camera& camera,
                    AssetManager& assets,
                    ProjectSettings& settings) {
-    DBG_LVL++;
-    // mat4 viewProjMatrix;
-    // glm_mat4_mul(camera.projectionMatrix, camera.viewMatrix, viewProjMatrix);
     glBindFramebuffer(GL_FRAMEBUFFER, renderTarget.mainFB); // Main frame buffer
 
     scene.transforms.GetItemRef(scene.mainLight.transformHandle);
@@ -575,29 +703,16 @@ void GL_OpaquePass(GameScene& scene,
     glEnable(GL_CULL_FACE);
     glCullFace(GL_FRONT);
     glDisable(GL_BLEND);
-    // auto& shaders = assets.shaders.GetVector();
-    // for (auto& shader : shaders) {
-    //     if (!shader.GetAcceptsLighting()) {
-    //         continue;
-    //     }
-    //     auto shaderGL = shader.GetShaderId();
-    //     glUseProgram(shaderGL);
-    //
-    //     shader.SetVec3(ID_UNIFORM_VIEW_POS, cameraTransform.position);
-    //     shader.SetVec3(ID_UNIFORM_AMBIENT_LIGHT_COLOR, scene.ambientLightColor);
-    //     shader.SetFloat(ID_UNIFORM_AMBIENT_LIGHT_INTENSITY, scene.ambientIntensity);
-    //     shader.SetVec3("DIRECTIONAL_LIGHT.direction", mainLightDir);
-    //     shader.SetVec3("DIRECTIONAL_LIGHT.color", scene.mainLight.color);
-    //     shader.SetFloat("DIRECTIONAL_LIGHT.intensity", scene.mainLight.intensity);
-    // }
 
-    for (auto& objHandle: scene.existingObjects) {
-        if (scene.renderObjects.IsValid(objHandle) == false) {
+    for (auto& objHandle: scene.activeWorldHandles) {
+        if (scene.worldObjectsPool.IsValid(objHandle) == false) {
             continue;
         }
-        RenderObject& obj = scene.renderObjects.GetItemRef(objHandle);
+        RenderObject& obj = scene.worldObjectsPool.GetItemRef(objHandle);
         Transform& transform = scene.transforms.GetItemRef(obj.hTransform);
+
         for (auto& renderData: obj.subMeshses) {
+
             Material& material = assets.materials.GetItemRef(renderData.hMaterial);
             Shader& shader = assets.GetShader(material.shaderHandle);
             Mesh& mesh = assets.meshes.GetItemRef(renderData.hMesh);
@@ -607,7 +722,6 @@ void GL_OpaquePass(GameScene& scene,
             }
             auto shaderId = shader.GetShaderId();
             GL_UseMaterial(material, shaderId, assets);
-            // printf("using Shader %d, Name: %s \n", shaderId, shader.GetName().c_str());
 
             i32 model_Location = glGetUniformLocation(shaderId, ID_UNIFORM_MODEL);
             i32 view_Location = glGetUniformLocation(shaderId, ID_UNIFORM_VIEW);
@@ -618,6 +732,7 @@ void GL_OpaquePass(GameScene& scene,
 
             glBindVertexArray(renderData.vao);
             glDrawElements(GL_TRIANGLES, mesh.indexCount, GL_UNSIGNED_INT, nullptr);
+            // printf("opaque object vao %d \n", renderData.vao);
 
             // Reset State
             glBindTexture(GL_TEXTURE_2D, 0);
@@ -630,8 +745,8 @@ void GL_OpaquePass(GameScene& scene,
     glUseProgram(0);
 }
 
-void ClearBackgroundNoSkyBox() {
-}
+
+void ClearBackgroundNoSkyBox() {}
 
 
 void GL_SkyboxPass(GameScene& scene,
@@ -682,16 +797,6 @@ void GL_SkyboxPass(GameScene& scene,
 }
 
 
-void GL_TransparentPass(GameScene& scene,
-                        Camera& camera,
-                        AssetManager& assets) {
-    glEnable(GL_BLEND);
-    glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
-    glDepthMask(GL_FALSE);
-}
-
-// endregion
-
 
 void GL_BlitDepthFromGBuffer(RenderTarget target,
                              PostProcessStack stack) {
@@ -703,8 +808,8 @@ void GL_BlitDepthFromGBuffer(RenderTarget target,
     // glBindFramebuffer(GL_READ_FRAMEBUFFER, target.mainFB);
     // glBindFramebuffer(GL_DRAW_FRAMEBUFFER, stack.postProcessB_FB);
     // glBlitFramebuffer(0, 0, target.width, target.height, 0, 0, target.width, target.height, GL_DEPTH_BUFFER_BIT, GL_NEAREST);
-
 }
+
 
 void GL_DeferredLightingPass(RenderTarget target,
                              PostProcessStack stack,
@@ -764,15 +869,15 @@ void GL_DeferredLightingPass(RenderTarget target,
 
             glActiveTexture(GL_TEXTURE3);
             glBindTexture(GL_TEXTURE_CUBE_MAP, texture.glHandle);
-            printf("\nSkybox loading: %d \n", texture.glHandle);
         }
     }
-    // glActiveTexture(GL_TEXTURE3);
-    // glBindTexture(GL_TEXTURE_CUBE_MAP, scene.skybox.textureCubeMap);
 
     GL_RenderScreenQuad(target);
     glEnable(GL_DEPTH_TEST);
 }
+
+// endregion
+
 
 
 // region Dev-Render options
@@ -819,6 +924,128 @@ void GL_RenderColorsOnly(const RenderTarget& target,
 }
 
 // endregion
+
+
+// region Instancing
+void GL_AddInstanceBuffer(std::shared_ptr<InstancedBuffer> bufferPtr) {
+    InstancedBuffers.push_back(bufferPtr);
+    auto& buffer = *bufferPtr;
+    glGenBuffers(1, &buffer.arrayObject);
+    glBindBuffer(GL_ARRAY_BUFFER, buffer.arrayObject);
+    glBufferData(GL_ARRAY_BUFFER, buffer.entries.size() * sizeof(mat4), buffer.entries.data(), GL_STATIC_DRAW);
+
+    glBindVertexArray(buffer.renderData.vao); // VAO is MESH data
+    constexpr size_t colSize = sizeof(vec4);
+    constexpr i32 uniformIdxStart = 3;
+
+    // Column-per-column uniforms declaration
+    for (i32 i = 0; i < 4; i++) {
+        i32 uni = uniformIdxStart + i;
+        glEnableVertexAttribArray(uni);
+        // (2) THIS size is in 'floats' (not bytes)     // (5) Here sizeof(mat4) is 4*4*4 = 64 bytes
+        glVertexAttribPointer(uni, 4, GL_FLOAT, GL_FALSE, sizeof(mat4), (void*) (i * colSize));
+        glVertexAttribDivisor(uni, 1);
+    }
+
+    glBindVertexArray(0);
+}
+
+void GL_InstancedPass(RenderTarget& target, AssetManager& assets,
+                      Camera& camera) {
+
+    glBindFramebuffer(GL_FRAMEBUFFER, target.mainFB);
+
+    glEnable(GL_DEPTH_TEST);
+    glDepthFunc(GL_LEQUAL);
+    glDepthMask(GL_TRUE);
+
+    glEnable(GL_CULL_FACE);
+    glCullFace(GL_FRONT);
+    glDisable(GL_BLEND);
+
+    // std::cout << "Rendering "<< InstancedBuffers.size() << " Instanced buffers" << std::endl;
+    for (auto& ptr: InstancedBuffers) {
+        auto& buffer = *ptr;
+        auto& mesh = assets.meshes.GetItemRef(buffer.renderData.hMesh);
+        auto& material = assets.materials.GetItemRef(buffer.renderData.hMaterial);
+        auto& shader = assets.shaders.GetItemRef(material.shaderHandle);
+        auto shaderId = shader.GetShaderId();
+        GL_UseMaterial(material, shaderId, assets);
+
+        glBindVertexArray(buffer.renderData.vao);
+        // printf("Rendering shader id (%d)  view_Location (%d), proj_Location (%d)\n", shaderId, view_Location, proj_Location);
+
+        i32 view_Location = glGetUniformLocation(shaderId, ID_UNIFORM_VIEW);
+        i32 proj_Location = glGetUniformLocation(shaderId, ID_UNIFORM_PROJECTION);
+        glUniformMatrix4fv(view_Location, 1, GL_FALSE, (float*) camera.viewMatrix);
+        glUniformMatrix4fv(proj_Location, 1, GL_FALSE, (float*) camera.projectionMatrix);
+
+        glDrawElementsInstanced(GL_TRIANGLES, mesh.indexCount, GL_UNSIGNED_INT, 0, buffer.entries.size());
+        glBindVertexArray(0);
+    }
+}
+
+// endregion
+
+
+
+//region Terrain render
+void GL_TerrainPass(RenderTarget& renderTarget, GameScene& scene, Camera& camera, AssetManager& assets) {
+
+    if (scene.terrain.isBuilt == false) {
+        return;
+    }
+    Terrain& terrain = scene.terrain;
+    Material& material = assets.materials.GetItemRef(terrain.hMaterial);
+
+    if (assets.materials.IsNullItem(material)) {
+        return;
+    }
+    Transform& transform = scene.transforms.GetItemRef(terrain.hTransform);
+    Shader& shader = assets.shaders.GetItemRef(material.shaderHandle);
+    auto shaderId = shader.GetShaderId();
+
+    // printf("[TERRAIN] material handle %d, shader %d, transformHandle: %d  \n",
+    //     terrain.hMaterial.index, shader.GetShaderId(), terrain.hTransform.index);
+    glBindFramebuffer(GL_FRAMEBUFFER, renderTarget.mainFB);
+    glUseProgram(shaderId);
+
+    glEnable(GL_DEPTH_TEST);
+    glDepthFunc(GL_LEQUAL);
+    glDepthMask(GL_TRUE);
+
+    glEnable(GL_CULL_FACE);
+    glCullFace(GL_FRONT);
+    glDisable(GL_BLEND);
+
+
+    i32 model_Location = glGetUniformLocation(shaderId, ID_UNIFORM_MODEL);
+    i32 view_Location = glGetUniformLocation(shaderId, ID_UNIFORM_VIEW);
+    i32 proj_Location = glGetUniformLocation(shaderId, ID_UNIFORM_PROJECTION);
+    glUniformMatrix4fv(model_Location, 1, GL_FALSE, (float*) transform.modelMatrix);
+    glUniformMatrix4fv(view_Location, 1, GL_FALSE, (float*) camera.viewMatrix);
+    glUniformMatrix4fv(proj_Location, 1, GL_FALSE, (float*) camera.projectionMatrix);
+
+    glBindVertexArray(terrain.vao);
+    glDrawElements(GL_TRIANGLES, terrain.indexCount, GL_UNSIGNED_INT, nullptr);
+
+
+    // Reset State
+    glBindTexture(GL_TEXTURE_2D, 0);
+    glBindVertexArray(0);
+    glUseProgram(0);
+}
+
+//endregion
+
+
+void GL_TransparentPass(GameScene& scene,
+                        Camera& camera,
+                        AssetManager& assets) {
+    glEnable(GL_BLEND);
+    glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
+    glDepthMask(GL_FALSE);
+}
 
 
 // region Post-Processing
@@ -983,69 +1210,58 @@ void GL_RenderPostProcess(const RenderTarget& target,
 //endregion
 
 
-// region Instancing
-void GL_AddInstanceBuffer(std::shared_ptr<InstancedBuffer> bufferPtr) {
-    InstancedBuffers.push_back(bufferPtr);
-    auto& buffer = *bufferPtr;
-    glGenBuffers(1, &buffer.arrayObject);
-    glBindBuffer(GL_ARRAY_BUFFER, buffer.arrayObject);
-    glBufferData(GL_ARRAY_BUFFER, buffer.entries.size() * sizeof(mat4), buffer.entries.data(), GL_STATIC_DRAW);
 
-    glBindVertexArray(buffer.renderData.vao); // VAO is MESH data
-    constexpr size_t colSize = sizeof(vec4);
-    constexpr i32 uniformIdxStart = 3;
+//region UI pass
+void GL_UIPass(RenderTarget& target, GameScene& scene, AssetManager& assets, Camera& camera) {
+    constexpr i32 quadIndexCount = 6;
 
-    // Column-per-column uniforms declaration
-    for (i32 i = 0; i < 4; i++) {
-        i32 uni = uniformIdxStart + i;
-        glEnableVertexAttribArray(uni);
-        // (2) THIS size is in 'floats' (not bytes)     // (5) Here sizeof(mat4) is 4*4*4 = 64 bytes
-        glVertexAttribPointer(uni, 4, GL_FLOAT, GL_FALSE, sizeof(mat4), (void*) (i * colSize));
-        glVertexAttribDivisor(uni, 1);
+    imax count = scene.activeUIHandles.size();
+    if (count == 0) {
+        return;
     }
+    vec2 screenSize = {(float)target.width, (float)target.height};
 
-    glBindVertexArray(0);
-}
+    glBindFramebuffer(GL_FRAMEBUFFER, 0);
 
-void GL_InstancedPass(RenderTarget& target, AssetManager& assets,
-                      Camera& camera) {
 
-    glBindFramebuffer(GL_FRAMEBUFFER, target.mainFB);
+    glDisable(GL_DEPTH_TEST);
+    glDepthMask(GL_FALSE);
+    glDisable(GL_CULL_FACE);
+    // glEnable(GL_CULL_FACE);
+    // glCullFace(GL_FRONT);
 
-    glEnable(GL_DEPTH_TEST);
-    glDepthFunc(GL_LEQUAL);
-    glDepthMask(GL_TRUE);
+    glEnable(GL_BLEND);
+    glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
 
-    glEnable(GL_CULL_FACE);
-    glCullFace(GL_FRONT);
-    glDisable(GL_BLEND);
+    for (size_t i = 0; i < count; i++) {
+        Handle h = scene.activeUIHandles[i];
+        auto& uiObj = scene.uiObjectsPool.GetItemRef(h);
 
-    // std::cout << "Rendering "<< InstancedBuffers.size() << " Instanced buffers" << std::endl;
-    for (auto& ptr: InstancedBuffers) {
-        auto& buffer = *ptr;
-        auto& mesh = assets.meshes.GetItemRef(buffer.renderData.hMesh);
-        auto& material = assets.materials.GetItemRef(buffer.renderData.hMaterial);
+        auto& material = assets.materials.GetItemRef(uiObj.hMaterial);
         auto& shader = assets.shaders.GetItemRef(material.shaderHandle);
-        auto shaderId = shader.GetShaderId();
+        i32 shaderId = shader.GetShaderId();
         GL_UseMaterial(material, shaderId, assets);
 
-        glBindVertexArray(buffer.renderData.vao);
-        // printf("Rendering shader id (%d)  view_Location (%d), proj_Location (%d)\n", shaderId, view_Location, proj_Location);
+        vec4 positionSize = {uiObj.position[0], uiObj.position[1], uiObj.size[0], uiObj.size[1]};
 
-        i32 view_Location = glGetUniformLocation(shaderId, ID_UNIFORM_VIEW);
-        i32 proj_Location = glGetUniformLocation(shaderId, ID_UNIFORM_PROJECTION);
-        glUniformMatrix4fv(view_Location, 1, GL_FALSE, (float*) camera.viewMatrix);
-        glUniformMatrix4fv(proj_Location, 1, GL_FALSE, (float*) camera.projectionMatrix);
+        shader.SetVec4("u_PositionSize", positionSize);
+        shader.SetVec2("u_ScreenResolution", screenSize);
 
-        glDrawElementsInstanced(GL_TRIANGLES, mesh.indexCount, GL_UNSIGNED_INT, 0, buffer.entries.size());
-        glBindVertexArray(0);
+        glBindVertexArray(uiObj.vao);
+        glDrawElements(GL_TRIANGLES, quadIndexCount, GL_UNSIGNED_INT, nullptr);
+        // printf("shader id: %d, vao %d. PositionSize %f, %f, %f, %f \n", shaderId, obj.vao,
+        //     positionSize[0], positionSize[1], positionSize[2], positionSize[3]);
     }
+
+    GL_CleanState();
+    glDisable(GL_BLEND);
+    glEnable(GL_DEPTH_TEST);
+    glDepthMask(GL_TRUE);
 }
-
-// endregion
-
+//endregion
 
 void GL_RenderScene(Engine& engine) {
+
     BindRenderTarget(renderTarget);
     auto& settings = engine.settings;
     auto& camera = engine.scene.camera;
@@ -1078,8 +1294,13 @@ void GL_RenderScene(Engine& engine) {
 
     GL_OpaquePass(scene, camera, assets, settings);
     GL_InstancedPass(renderTarget, assets, camera);
+
+    GL_TerrainPass(renderTarget, scene, camera, assets);
+
     GL_DeferredLightingPass(renderTarget, ppStack, scene, camera, assets);
+
     GL_BlitDepthFromGBuffer(renderTarget, ppStack);
+
     if (settings.RenderSkyBox) {
         GL_SkyboxPass(scene, assets, ppStack.postProcessA_FB);
     }
@@ -1088,15 +1309,7 @@ void GL_RenderScene(Engine& engine) {
 
     GL_RenderPostProcess(renderTarget, ppStack, assets, camera, settings);
 
-    // // Skybox
-    // if (settings.RenderSkyBox) {
-    //     GL_RenderSkybox(engine.scene, assets);
-    // }
-    // else {
-    //     ClearBackgroundNoSkyBox();
-    // }
-    // Transparent Pass
-    // GL_ForwardRenderTransparent(engine.scene, camera, assets);
+    GL_UIPass(renderTarget, scene, assets, camera);
 
     // if (devDepths) {
     //     GL_RenderDepthOnly(renderTarget, assets.GetShader(assets.shaderDepthOnly), camera);

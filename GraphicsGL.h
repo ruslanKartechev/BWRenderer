@@ -6,6 +6,9 @@
 #include "ProjectSettings.h"
 #include "Engine.h"
 #include "InstancedBuffer.h"
+#include "Terrain.h"
+#include "UIObject.h"
+
 
 struct RenderTarget {
     i32 width;
@@ -59,6 +62,7 @@ void GL_RenderScene(Engine& engine);
 void GL_OpaquePass(GameScene& scene, Camera& camera, AssetManager& assets, ProjectSettings& settings);
 void GL_ForwardRenderTransparent(GameScene& scene, Camera& camera, AssetManager& assets, ProjectSettings& settings);
 void GL_SkyboxPass(GameScene& scene, AssetManager& assets, u32 frameBuffer);
+void GL_AllocateGraphicsTerrain(Terrain& terrain);
 
 void GL_AddInstanceBuffer(std::shared_ptr<InstancedBuffer> bufferPtr);
 // endregion
@@ -66,5 +70,6 @@ void GL_AddInstanceBuffer(std::shared_ptr<InstancedBuffer> bufferPtr);
 // region Graphics Objects Initialization
 void GL_AllocateGraphicsSkybox(RenderSubMesh& obj);
 void GL_AllocateGraphicsForObject(RenderObject& obj, AssetManager& assets);
-void GL_AllocateGraphicsForMesh(RenderSubMesh& meshRenderData, AssetManager& assets);
+void GL_AllocateGraphicsMesh(RenderSubMesh& meshRenderData, AssetManager& assets);
+void GL_AllocateGUIQuad(UIObject& obj);
 // endregion

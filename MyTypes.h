@@ -10,6 +10,7 @@
 #define i16 int16_t
 #define i32 int32_t
 #define i64 int64_t
+#define imax size_t
 
 #define u8  uint8_t
 #define u16 uint16_t

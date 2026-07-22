@@ -9,7 +9,7 @@
 using NameBindingPair = std::pair<std::string, i32>;
 using NameFloatPair = std::pair<std::string, f32>;
 using NameVectorPair = std::pair<std::string, vector4>;
-
+using ShaderUniformLocation = u32;
 
 struct MaterialTextureProp {
     Handle texHandle;
@@ -38,10 +38,9 @@ public:
 
     // runtime
     Handle shaderHandle;
-    std::vector<std::pair<u32, float>> floats;
-    std::vector<std::pair<u32, vector4>> vectors;
-    /// Pairs of <GL_Binding_Location ; resource Handle>
-    std::vector<std::pair<u32, MaterialTextureProp>> textures;
+    std::vector<std::pair<ShaderUniformLocation, float>> floats;
+    std::vector<std::pair<ShaderUniformLocation, vector4>> vectors;
+    std::vector<std::pair<ShaderUniformLocation, MaterialTextureProp>> textures;
     bool writeDepth = true;
     bool isTransparent = false;
     bool didInit = false;

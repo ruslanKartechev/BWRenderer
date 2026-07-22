@@ -7,18 +7,23 @@
 #include <iostream>
 
 #include "InstancedBuffer.h"
+#include "NoiseGenerator.h"
 
 
 constexpr f32 LightDebugScale = .25f;
 
-static Handle h_mat_Floor;
-static Handle h_mat_Table;
-static Handle h_mat_Metal;
-static Handle h_mat_Tree;
+static MaterialHandle h_mat_Floor;
+static MaterialHandle h_mat_Table;
+static MaterialHandle h_mat_Metal;
+static MaterialHandle h_mat_Tree;
+static MaterialHandle h_mat_Terrain;
 
-static Handle hMeshTable = {};
-static Handle hMeshTree = {};
-static Handle hMeshLamp = {};
+static MeshHandle hMeshTable = {};
+static MeshHandle hMeshTree = {};
+static MeshHandle hMeshLamp = {};
+
+static std::shared_ptr<InstancedBuffer> treesInstanceBuffer = std::make_shared<InstancedBuffer>();
+
 
 void LoadDefaultTextures(AssetManager& assets) {
     {
@@ -29,8 +34,7 @@ void LoadDefaultTextures(AssetManager& assets) {
 }
 
 
-
-void InitSceneMaterials(AssetManager& assets) {
+void LoadMaterials(AssetManager& assets) {
     const char* defaultShaderName = "Default3D";
     // Floor
     {
@@ -42,8 +46,8 @@ void InitSceneMaterials(AssetManager& assets) {
         material.SetFloatDefinition(ID_METALLIC, .25f);
         material.SetFloatDefinition(ID_SSR_POWER, 1.0f);
 
-        // material.SetTextureDefinition(ID_BASE_MAP, "tile_concrete.png");
-        // material.SetTextureDefinition(ID_NORMAL_MAP, "tile_concrete_normal.jpg");
+        material.SetTextureDefinition(ID_BASE_MAP, "tile_concrete.png", 0);
+        material.SetTextureDefinition(ID_NORMAL_MAP, "tile_concrete_normal.jpg", 1);
         material.SetVectorDefinition(ID_BASE_MAP_TO, {8.0f, 8.0f, 0.0f, 0.0f});
 
         assets.LoadTexturesForMaterials(material);
@@ -68,14 +72,12 @@ void InitSceneMaterials(AssetManager& assets) {
         auto& material = assets.materials.GetNewObjectAndHandle(h_mat_Metal);
         GL_InitMaterialParametersDefault3D(material);
 
-        material.SetFloatDefinition(ID_SMOOTHNESS, 0.65f);
+        material.SetFloatDefinition(ID_SMOOTHNESS, 0.8f);
         material.SetFloatDefinition(ID_METALLIC, 1.0f);
 
-        constexpr float shade = .05f;
+        constexpr float shade = .25f;
         material.SetVectorDefinition(ID_COLOR_TINT, {shade, shade, shade, 1.0});
-
         material.SetVectorDefinition(ID_BASE_MAP_TO, {1.0f, 1.0f, 0.0f, 0.0f});
-        // assets.LoadTexturesForMaterials(material);
         GL_InitMaterialProperties(material, assets);
     }
     // Tree mat 1
@@ -94,8 +96,16 @@ void InitSceneMaterials(AssetManager& assets) {
 
         GL_InitMaterialProperties(material, assets);
     }
+    // Terrain
+    {
+        auto& material = assets.materials.GetNewObjectAndHandle(h_mat_Terrain);
+        material.shaderName = "Terrain";
+        material.SetFloatDefinition(ID_SMOOTHNESS, 0.4f);
+        constexpr float shade = .5f;
+        material.SetVectorDefinition(ID_COLOR_TINT, {shade, shade, shade, 1.0});
+        GL_InitMaterialProperties(material, assets);
+    }
 }
-
 
 
 void LoadMeshes(AssetManager& assets) {
@@ -138,11 +148,9 @@ void LoadMeshes(AssetManager& assets) {
     //     }
     //     loadedDefinitions.insert(loadedDefinitions.end(), definitions.begin(), definitions.end());
     // }
-    //
     // for (auto& def : loadedDefinitions) {
     //     std::cout << "[Init] definition: " << def.name << " MeshesCount: " << def.Meshes.size() << std::endl;
     // }
-
 }
 
 
@@ -151,35 +159,50 @@ void AddNewCustomObject_SingleMesh(std::string&& name, AssetManager& assets, Gam
                     vec3 pos, vec3 rot, vec3 scale) {
 
     Handle hObject = scene.NewObject_SingleSubMesh(name.c_str(), hMesh, pos, rot, scale, hMaterial);
-    scene.existingObjects.push_back(hObject);
+    scene.activeWorldHandles.push_back(hObject);
 }
 
 
+void PlaceTrees(AssetManager& assets, GameScene& scene) {
+    float posTreeZ = 5;
+    // Tree 1
+    {
+        vec3 pos = {-3.0, 0.0f, posTreeZ};
+        vec3 rot = {0.0f, 0.0f, 0.0f};
+        const float sf = 0.01f;
+        vec3 scale = {sf, sf, sf};
+        AddNewCustomObject_SingleMesh("Tree 1", assets, scene, hMeshTree, h_mat_Tree, pos, rot, scale);
+    }
+    // Tree 2
+    {
+        vec3 pos = {0.0, 0.0f, posTreeZ};
+        vec3 rot = {0.0f, 0.0f, 0.0f};
+        const float sf = 0.01f;
+        vec3 scale = {sf, sf, sf};
+        AddNewCustomObject_SingleMesh("Tree 2", assets, scene, hMeshTree, h_mat_Tree, pos, rot, scale);
+    }
+    // Tree 2
+    {
+        vec3 pos = {3.0, 0.0f, posTreeZ};
+        vec3 rot = {0.0f, 0.0f, 0.0f};
+        const float sf = 0.01f;
+        vec3 scale = {sf, sf, sf};
+        AddNewCustomObject_SingleMesh("Tree 3", assets, scene, hMeshTree, h_mat_Tree, pos, rot, scale);
+    }
 
-void PlaceObjectsToScene(AssetManager& assets, GameScene& scene) {
+}
+
+void PlaceDefaultShapes(AssetManager& assets, GameScene& scene) {
     float posGeomZ = -2.5f;
     float posGeomX = -7.0f;
     float posGeomXStep = 2.5f;
-
-    float posTableZ = 2;
-    float posTreeZ = 5;
-    float posLampsZ = 10;
-
-    //Floor
-    {
-        vec3 pos = {0.0, -0.5f, 0.0f};
-        vec3 rot = {0.0f, 0.0f, 0.0f};
-        vec3 scale = {32.0f, 1.0f, 32.0f};
-        Handle objHandle = scene.NewObject_SingleSubMesh("FloorPlane", assets.meshCube, pos, rot, scale, h_mat_Floor);
-        scene.existingObjects.push_back(objHandle);
-    }
-    // cube 1
+   // cube 1
     {
         vec3 pos = {posGeomX, 1.0f, posGeomZ};
         vec3 rot = {0.0f, 0.0f, 0.0f};
         vec3 scale = {1.0f, 2.0f, 1.0f};
         Handle objHandle = scene.NewObject_SingleSubMesh("Cube FL", assets.meshCube, pos, rot, scale, h_mat_Metal);
-        scene.existingObjects.push_back(objHandle);
+        scene.activeWorldHandles.push_back(objHandle);
     }
     posGeomX += posGeomXStep;
     // cube 2
@@ -188,7 +211,7 @@ void PlaceObjectsToScene(AssetManager& assets, GameScene& scene) {
         vec3 rot = {0.0f, 0.0f, 0.0f};
         vec3 scale = {1.0f, 1.0f, 1.0f};
         Handle objHandle = scene.NewObject_SingleSubMesh("Cube RR", assets.meshCube ,pos, rot, scale, assets.materialDefault3d);
-        scene.existingObjects.push_back(objHandle);
+        scene.activeWorldHandles.push_back(objHandle);
     }
     posGeomX += posGeomXStep;
     // Pyramid
@@ -197,7 +220,7 @@ void PlaceObjectsToScene(AssetManager& assets, GameScene& scene) {
         vec3 rot = {0.0f, 0.0f, 0.0f};
         vec3 scale = {1.0f, 1.0f, 1.0f};
         Handle objHandle = scene.NewObject_SingleSubMesh("Pyramid", assets.meshPyramid, pos, rot, scale, assets.materialDefault3d);
-        scene.existingObjects.push_back(objHandle);
+        scene.activeWorldHandles.push_back(objHandle);
     }
     posGeomX += posGeomXStep;
     // Sphere 1
@@ -206,7 +229,7 @@ void PlaceObjectsToScene(AssetManager& assets, GameScene& scene) {
         vec3 rot = {0.0f, 0.0f, 0.0f};
         vec3 scale = {1.0f, 1.0f, 1.0f};
         Handle objHandle = scene.NewObject_SingleSubMesh("Sphere", assets.meshSphere, pos, rot, scale, h_mat_Metal);
-        scene.existingObjects.push_back(objHandle);
+        scene.activeWorldHandles.push_back(objHandle);
     }
     posGeomX += posGeomXStep;
     // Sphere 2
@@ -215,7 +238,7 @@ void PlaceObjectsToScene(AssetManager& assets, GameScene& scene) {
         vec3 rot = {0.0f, 0.0f, 0.0f};
         vec3 scale = {1.0f, 1.0f, 1.0f};
         Handle objHandle = scene.NewObject_SingleSubMesh("Sphere", assets.meshSphere, pos, rot, scale, assets.materialDefault3d);
-        scene.existingObjects.push_back(objHandle);
+        scene.activeWorldHandles.push_back(objHandle);
     }
     posGeomX += posGeomXStep;
     // Capsule
@@ -224,7 +247,7 @@ void PlaceObjectsToScene(AssetManager& assets, GameScene& scene) {
         vec3 rot = {0.0f, 0.0f, 0.0f};
         vec3 scale = {1.0f, 1.0f, 1.0f};
         Handle objHandle = scene.NewObject_SingleSubMesh("capsule", assets.meshCapsule, pos, rot, scale, assets.materialDefault3d);
-        scene.existingObjects.push_back(objHandle);
+        scene.activeWorldHandles.push_back(objHandle);
     }
     posGeomX += posGeomXStep;
     // Donut
@@ -233,9 +256,14 @@ void PlaceObjectsToScene(AssetManager& assets, GameScene& scene) {
         vec3 rot = {0.0f, 0.0f, 0.0f};
         vec3 scale = {1.0f, 1.0f, 1.0f};
         Handle objHandle = scene.NewObject_SingleSubMesh("donut", assets.meshDonut, pos, rot, scale, h_mat_Metal);
-        scene.existingObjects.push_back(objHandle);
+        scene.activeWorldHandles.push_back(objHandle);
     }
 
+}
+
+void PlaceCustomShapes(AssetManager& assets, GameScene& scene) {
+    float posTableZ = 2;
+    float posLampsZ = 10;
 
     // Table 1
     {
@@ -251,30 +279,6 @@ void PlaceObjectsToScene(AssetManager& assets, GameScene& scene) {
         vec3 scale = {0.0065f, 0.0065f, 0.0065f};
         AddNewCustomObject_SingleMesh("Table 2", assets, scene, hMeshTable, h_mat_Table, pos, rot, scale);
     }
-    // // Tree 1
-    // {
-    //     vec3 pos = {-3.0, 0.0f, posTreeZ};
-    //     vec3 rot = {0.0f, 0.0f, 0.0f};
-    //     const float sf = 0.01f;
-    //     vec3 scale = {sf, sf, sf};
-    //     AddNewCustomObject_SingleMesh("Tree 1", assets, scene, hMeshTree, h_mat_Tree, pos, rot, scale);
-    // }
-    // // Tree 2
-    // {
-    //     vec3 pos = {0.0, 0.0f, posTreeZ};
-    //     vec3 rot = {0.0f, 0.0f, 0.0f};
-    //     const float sf = 0.01f;
-    //     vec3 scale = {sf, sf, sf};
-    //     AddNewCustomObject_SingleMesh("Tree 2", assets, scene, hMeshTree, h_mat_Tree, pos, rot, scale);
-    // }
-    // // Tree 2
-    // {
-    //     vec3 pos = {3.0, 0.0f, posTreeZ};
-    //     vec3 rot = {0.0f, 0.0f, 0.0f};
-    //     const float sf = 0.01f;
-    //     vec3 scale = {sf, sf, sf};
-    //     AddNewCustomObject_SingleMesh("Tree 3", assets, scene, hMeshTree, h_mat_Tree, pos, rot, scale);
-    // }
 
     // Lamp 1
     {
@@ -300,17 +304,51 @@ void PlaceObjectsToScene(AssetManager& assets, GameScene& scene) {
         vec3 scale = {sf, sf, sf};
         AddNewCustomObject_SingleMesh("Lamp 3", assets, scene, hMeshLamp, h_mat_Metal, pos, rot, scale);
     }
+}
 
 
+
+void BuildTerrain(AssetManager& assets, GameScene& scene) {
+
+    std::cout << "BUILDING TERRAIN" << std::endl;
+    Terrain& terr = scene.terrain;
+
+    terr.hMaterial = h_mat_Terrain;
+    Transform& transform = scene.transforms.GetNewObjectAndHandle(terr.hTransform);
+    Transform_Init(transform);
+    SET_VEC3(transform.position, 0.0f, -0.1f, 0.0f);
+    Transform_SetRotationEulerDeg(transform, 0.0, 0.0, 0.0);
+    Transform_UpdateMatrices(transform);
+
+    terr.GenerateMeshData();
+    GL_AllocateGraphicsTerrain(terr);
+}
+
+
+void PlaceObjectsToScene(AssetManager& assets, GameScene& scene) {
+    //Floor
+    {
+        vec3 pos = {0.0, -0.5f, 0.0f};
+        vec3 rot = {0.0f, 0.0f, 0.0f};
+        vec3 scale = {32.0f, 1.0f, 32.0f};
+        Handle objHandle = scene.NewObject_SingleSubMesh("FloorPlane", assets.meshCube, pos, rot, scale, h_mat_Floor);
+        scene.activeWorldHandles.push_back(objHandle);
+    }
+    // PlaceDefaultShapes(assets, scene);
+    PlaceCustomShapes(assets, scene);
+
+    BuildTerrain(assets, scene);
+    std::cout << "Building Terrain completed" << std::endl;
 }
 
 
 void PlaceCamera(GameScene& scene) {
     Transform& cameraTransform = scene.transforms.GetNewObjectAndHandle(scene.camera.transformHandle);
-    Transform_SetWorldPosition(cameraTransform, 0.0f, 1.0f, -10.0f);
-    Transform_SetRotationEulerDeg(cameraTransform, 1.0f, 0.0f, 0.0f);
+    Transform_SetWorldPosition(cameraTransform, 0.0f, 3.5f, -11.0f);
+    Transform_SetRotationEulerDeg(cameraTransform, 10.0f, 0.0f, 0.0f);
     Transform_SetLocalScale(cameraTransform, 1.0f, 1.0f, 1.0f);
 }
+
 
 
 void InitSceneLights(GameScene& scene){
@@ -333,7 +371,6 @@ void InitSceneLights(GameScene& scene){
 }
 
 
-static std::shared_ptr<InstancedBuffer> treesInstanceBuffer = std::make_shared<InstancedBuffer>();
 
 
 void InitInstanceBuffers(AssetManager& assets) {
@@ -347,7 +384,7 @@ void InitInstanceBuffers(AssetManager& assets) {
     buffer.name = "Trees";
     buffer.renderData.hMesh = hMeshTree;
     buffer.renderData.hMaterial = h_mat_Tree;
-    GL_AllocateGraphicsForMesh(buffer.renderData, assets);
+    GL_AllocateGraphicsMesh(buffer.renderData, assets);
 
     for (size_t i = 0; i < count; i++) {
         i32 x = i % entriesPerRow;
@@ -365,14 +402,66 @@ void InitInstanceBuffers(AssetManager& assets) {
 
 
 
+static Handle h_debugUIQuad;
+static TextureHandle h_noiseTex;
+static MaterialHandle h_matUI;
+static NoiseGenerator noiseGen = {};
+
+constexpr i32 NoiseSizeX = 200;
+constexpr i32 NoiseSizeY = 200;
+
+void InitNoiseDebugUI(Engine& engine) {
+
+    std::cout << "Generating Noise" << std::endl;
+    noiseGen.sizeX = NoiseSizeX;
+    noiseGen.sizeY = NoiseSizeY;
+    noiseGen.octaves = 8;
+    noiseGen.GeneratePerlin();
+
+    std::cout << "Initializing debug NoiseTextureView" << std::endl;
+
+    UIObject& obj = engine.scene.uiObjectsPool.GetNewObjectAndHandle(h_debugUIQuad);
+    Material& uiMat = engine.assetManager.materials.GetNewObjectAndHandle(h_matUI);
+    uiMat.shaderName = "UIQuad";
+    uiMat.vectorsDefinitions.clear();
+    uiMat.floatsDefinitions.clear();
+    uiMat.texturesDefinitions.clear();
+    obj.hMaterial = h_matUI;
+
+    SET_VEC2(obj.position, 10, 10);
+    SET_VEC2(obj.size, NoiseSizeX, NoiseSizeY);
+
+    GL_AllocateGUIQuad(obj);
+    engine.scene.activeUIHandles.push_back(h_debugUIQuad);
+
+    f32* noiseTexPtr = noiseGen.GetDataPtr();
+
+    const char* noiseTexName = "Noise_Debug";
+    Texture& noiseTexture = engine.assetManager.textures.GetNewObjectAndHandle(h_noiseTex);
+    noiseTexture.name = noiseTexName;
+    noiseTexture.SetPixelFormat(Texture::TEX_FORMAT_R32);
+    noiseTexture.SetSize(noiseGen.sizeX, noiseGen.sizeY);
+    noiseTexture.SetChannelCount(1);
+    noiseTexture.SetFloatDataPtr(noiseTexPtr);
+    noiseTexture.UploadToGL(false);
+
+    uiMat.SetTextureDefinition(ID_MAIN_TEXTURE, noiseTexName, 0);
+    GL_InitMaterialProperties(uiMat, engine.assetManager);
+
+}
+
+
 void RunGameSceneInit() {
     auto& engine = *Engine::GetInstance();
 
     LoadMeshes(engine.assetManager);
-    InitSceneMaterials(engine.assetManager);
+    LoadMaterials(engine.assetManager);
     PlaceCamera(engine.scene);
     InitSceneLights(engine.scene);
-
     PlaceObjectsToScene(engine.assetManager, engine.scene);
+
+
+    InitNoiseDebugUI(engine);
+
     InitInstanceBuffers(engine.assetManager);
 }

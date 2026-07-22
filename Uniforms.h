@@ -37,7 +37,7 @@ inline const char* ID_SKYBOX_BRIGHTNESS = "_BRIGHTNESS";
 inline const char* ID_SKYBOX_CUBEMAP = "_SKYBOX";
 inline const char* ID_SSR_POWER = "_SSR_POWER";
 
-inline const char* ID_UNIFORM_SCREEN_TEXTURE = "screenTexture";
+inline const char* ID_MAIN_TEXTURE = "mainTex";
 inline const char* ID_FAR_PLANE = "FAR_PLANE";
 inline const char* ID_NEAR_PLANE = "NEAR_PLANE";
 
@@ -55,3 +55,6 @@ inline const char* MESH_PYRAMID = "pyramid";
 inline const char* MESH_DONUT = "donut";
 inline const char* MESH_CUT_CONE = "cutCone";
 
+
+inline const char* TEX_DEFAULT_NORMAL = "default_normal";
+inline const char* TEX_DEFAULT_WHITE = "default_white";

@@ -10,9 +10,11 @@
 #include "ProjectSettings.h"
 #include "RenderSubMesh.h"
 #include "stb_image.h"
+#include "Uniforms.h"
 
 
 static const int MAX_STRCMP_ITERATIONS = 128;
+
 
 std::string AssetManager::GetProjectSettingsPath() {
     return GetGlobalPath("Settings.ini");
@@ -138,7 +140,7 @@ void ParseAssimpMesh(const aiMesh& ai_mesh, Mesh& out_mesh) {
 
 Handle AssetManager::ParseIntoRenderObject(const aiNode* node, const aiScene& aiScene, GameScene& gameScene) {
     Handle objHandle {0,0};
-    RenderObject& renderObject = gameScene.renderObjects.GetNewObjectAndHandle(objHandle);
+    RenderObject& renderObject = gameScene.worldObjectsPool.GetNewObjectAndHandle(objHandle);
     Transform& objTransform = gameScene.transforms.GetNewObjectAndHandle(renderObject.hTransform);
     Transform_Init(objTransform);
 
@@ -179,8 +181,6 @@ bool AssetManager::ParseSceneRecursive(const aiNode* node, const aiScene& aiScen
     }
     return true;
 }
-
-
 
 
 bool AssetManager::ParseIntoObjectDefinition(const aiNode* node, const aiScene& aiScene, ObjectDefinition& definition) {
@@ -303,6 +303,7 @@ bool AssetManager::LoadTexturesForMaterials(Material& material) {
     for (auto& definitionPair : material.texturesDefinitions) {
         Handle h = {};
         std::string& path = definitionPair.second.first;
+        std::cout << "[Assets.LOADING_Tex] " << path << " , " << std::endl;
         Texture& texture = GetNewTextureObject(h);
         bool didLoad = LoadTextureAtPath(texture, path.c_str(), true);
         loaded &= didLoad;
@@ -318,23 +319,20 @@ bool AssetManager::LoadTextureAtPath(Texture &texture, const char *relativePath,
     texture.name = relativePath;
     texture.isLoaded = false;
     texture.name = relativePath;
+    texture.FreeData();
 
-    std::string gloalPath = GetGlobalPathTextures(relativePath);
-    if (texture.pixels != nullptr) {
-        free(texture.pixels);
-    }
-    std::cout << "[Assets] Loading texture: "<<gloalPath<<std::endl;
-    texture.pixels = nullptr;
-    texture.pixels = stbi_load(gloalPath.c_str(), &sizeX, &sizeY, &nrChannels, 4);
-    if (texture.pixels == nullptr) {
-
-        std::cerr << "[TextureLoad] Failed to real pixels! " << gloalPath  << std::endl;
+    std::string assetPath = GetGlobalPathTextures(relativePath);
+    u8* ptr = stbi_load(assetPath.c_str(), &sizeX, &sizeY, &nrChannels, 4);
+    if (ptr == nullptr) {
+        std::cerr << "[Assets] Failed to read pixels! " << assetPath  << std::endl;
         return false;
     }
 
     texture.width = sizeX;
     texture.height = sizeY;
     texture.channels = nrChannels;
+    texture.SetPixelFormat(Texture::TEX_FORMAT_sRGB32);
+    texture.SetBytePixelsPtr(ptr);
     texture.isLoaded = true;
     if (uploadToGPU) {
         texture.UploadToGL(true);
@@ -343,11 +341,11 @@ bool AssetManager::LoadTextureAtPath(Texture &texture, const char *relativePath,
 }
 
 
-bool AssetManager::LoadTextureCubemap(Texture& texture, std::vector<std::string>& facePaths) {
+bool AssetManager::LoadTextureCubeMap6Face(Texture& texture, std::vector<std::string>& facePaths) {
     bool didLoad = true;
 
     if (facePaths.size() != 6) {
-        std::cout << "Possible error. Cubemap sides count is not 6" << std::endl;
+        std::cerr << "[Assets] Possible error. Cubemap sides count is not 6" << std::endl;
         texture.isLoaded = false;
         return false;
     }
@@ -358,17 +356,17 @@ bool AssetManager::LoadTextureCubemap(Texture& texture, std::vector<std::string>
 
     texture.glHandle = textureID;
     texture.isLoaded = true;
+    texture.SetPixelFormat(Texture::TEX_FORMAT_SkyBox);
 
     stbi_set_flip_vertically_on_load(false);
 
     for (size_t i = 0; i < facePaths.size(); i++) {
         i32 width, height, nrChannels;
         std::string loadPath = GetGlobalPathTextures(facePaths[i].c_str());
-        std::cout << "Loading part of image from: " << loadPath << std::endl;
+        // std::cout << "[Assets] Loading part of image from: " << loadPath << std::endl;
 
         unsigned char* pixelData = stbi_load(loadPath.c_str(), &width, &height, &nrChannels, 0);
-
-        if (pixelData) {
+        if (pixelData != nullptr) {
             // OpenGL enum go like: (Right, Left, Top, Bottom, Front, Back)
             GLenum format = (nrChannels == 4) ? GL_RGBA : GL_RGB;
             glTexImage2D(GL_TEXTURE_CUBE_MAP_POSITIVE_X + i, 0, format, width, height, 0, format, GL_UNSIGNED_BYTE, pixelData);
@@ -376,8 +374,6 @@ bool AssetManager::LoadTextureCubemap(Texture& texture, std::vector<std::string>
         }
         else {
             std::cout << "Failed to load cubemap texture at: " << facePaths[i] << std::endl;
-            if (pixelData != nullptr)
-                stbi_image_free(pixelData);
             didLoad = false;
         }
     }
@@ -393,42 +389,18 @@ bool AssetManager::LoadTextureCubemap(Texture& texture, std::vector<std::string>
 
 
 void AssetManager::CreateDefaultNormalMap() {
-    constexpr i32 dim = 4 ;
-    constexpr i32 size = dim * dim;
-    u8 pixels[4 * size];
-    std::memset(pixels, 255, sizeof(pixels)); // Is this correct
-    for (size_t i = 0; i < size; i++) {
-        pixels[i * 4 + 0] = 128; // x
-        pixels[i * 4 + 1] = 128; // y
-        pixels[i * 4 + 2] = 255; // z
-        pixels[i * 4 + 3] = 255; // a
-    }
-
+    constexpr i32 dimensions = 4;
     Texture& texture = GetNewTextureObject(defaultNormal);
-    texture.pixels = pixels;
-    texture.name = "default_normal";
-    texture.width = dim;
-    texture.height = dim;
-
-    texture.isLoaded = true;
-    texture.UploadToGL(false);
+    texture.GenerateDefaultNormalTexture(dimensions);
+    texture.name = TEX_DEFAULT_NORMAL;
 }
 
 void AssetManager::CreateDefaultWhiteTexture() {
-
     constexpr i32 dim = 4 ;
-    constexpr i32 size = dim * dim;
-    u8 pixels[4 * size];
-    std::memset(pixels, 255, sizeof(pixels)); // Is this correct
-
     Texture& texture = GetNewTextureObject(defaultWhiteTexture);
-    texture.pixels = pixels;
-    texture.name = "default_white";
-    texture.width = dim;
-    texture.height = dim;
+    texture.GenerateDefaultWhiteTexture(dim);
+    texture.name = TEX_DEFAULT_WHITE;
 
-    texture.isLoaded = true;
-    texture.UploadToGL(false);
 }
 //endregion
 

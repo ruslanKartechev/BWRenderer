@@ -64,8 +64,8 @@ void AddDebugGeometryForLights(GameScene& scene, AssetManager& assets) {
     {
         vec3 pos, eulers, scale;
         Handle objHandle = scene.NewObject_SingleSubMesh("Light Debug", assets.meshCutCone, pos, eulers, scale, assets.materialDebug);
-        scene.existingObjects.push_back(objHandle);
-        auto& newObj = scene.renderObjects.GetItemRef(objHandle);
+        scene.activeWorldHandles.push_back(objHandle);
+        auto& newObj = scene.worldObjectsPool.GetItemRef(objHandle);
         scene.transforms.FreeHandle(newObj.hTransform);
         newObj.hTransform = scene.mainLight.transformHandle;
     }
@@ -154,6 +154,8 @@ void LoadShadersDeferred(Engine& engine) {
     Shader& bloomUp = assets.shaders.GetNewObjectAndHandle(assets.shaderBloomUpSample);
     Shader& bloomComposite = assets.shaders.GetNewObjectAndHandle(assets.shaderBloomComposite);
     Shader& renderTexture = assets.shaders.GetNewObjectAndHandle(assets.shaderScreenRenderTexture);
+    Shader& terrain = assets.shaders.GetNewObjectAndHandle(assets.shaderTerrain);
+    Shader& uiQuad = assets.shaders.GetNewObjectAndHandle(assets.uiQuad);
 
     // Assign names
     default3DG.SetNameSeparate(Shader_DefaultDeferredG, "Deferred/Deferred_G_3D", "Deferred/Deferred_G_3D");
@@ -166,7 +168,8 @@ void LoadShadersDeferred(Engine& engine) {
     bloomDown2.SetNameSeparate("BloomDownsample", "ScreenRenderTexture", "PostProcess/BloomDownsample");
     bloomUp.SetNameSeparate("BloomUpsample", "ScreenRenderTexture", "PostProcess/BloomUpsample");
     bloomComposite.SetNameSeparate("BloomComposition", "ScreenRenderTexture", "PostProcess/BloomComposite");
-
+    terrain.SetNameSeparate("Terrain", "Deferred/Terrain_G", "Deferred/Terrain_G");
+    uiQuad.SetName("UIQuad");
 
     bool allCompiled = true;
     allCompiled |= default3DG.LoadAndCompile() == 0;
@@ -179,6 +182,8 @@ void LoadShadersDeferred(Engine& engine) {
     allCompiled |= bloomDown2.LoadAndCompile() == 0;
     allCompiled |= bloomUp.LoadAndCompile() == 0;
     allCompiled |= bloomComposite.LoadAndCompile() == 0;
+    allCompiled |= terrain.LoadAndCompile() == 0;
+    allCompiled |= uiQuad.LoadAndCompile() == 0;
 
 
 #define LOG_DEFAULT_SHADER_COMP
@@ -186,6 +191,8 @@ void LoadShadersDeferred(Engine& engine) {
     std::cout << "[shader] compiled default3DG " << default3DG.GetName() << " " << default3DG.GetShaderId() << std::endl;
     std::cout << "[shader] compiled default3DL " << default3DL.GetName() << " " << default3DL.GetShaderId() << std::endl;
     std::cout << "[shader] compiled skybox " << skybox.GetName() << " " << skybox.GetShaderId() << std::endl;
+    std::cout << "[shader] compiled terrain " << terrain.GetName() << " " << terrain.GetShaderId() << std::endl;
+    std::cout << "[shader] compiled uiQuad " << uiQuad.GetName() << " " << uiQuad.GetShaderId() << std::endl;
 #endif
 
     assert(allCompiled);
@@ -200,6 +207,8 @@ void LoadShadersDeferred(Engine& engine) {
     engine.shaderWatcher.WatchShader(bloomDown2);
     engine.shaderWatcher.WatchShader(bloomUp);
     engine.shaderWatcher.WatchShader(bloomComposite);
+    engine.shaderWatcher.WatchShader(terrain);
+    engine.shaderWatcher.WatchShader(uiQuad);
 
     // Additional Shaders
     {
@@ -329,13 +338,14 @@ void LoadSkyboxTexture(const char* textureName) {
     facePaths[4] = std::string(textureName) + "/nz.png";
     facePaths[5] = std::string(textureName) + "/pz.png";
 
-    AssetManager::LoadTextureCubemap(texture, facePaths);
+    AssetManager::LoadTextureCubeMap6Face(texture, facePaths);
 }
 
 
 void LoadDefaultTextures() {
-    EnginePtr->assetManager.CreateDefaultWhiteTexture();
-    EnginePtr->assetManager.CreateDefaultNormalMap();
+    AssetManager& assets = EnginePtr->assetManager;
+    assets.CreateDefaultWhiteTexture();
+    assets.CreateDefaultNormalMap();
     LoadSkyboxTexture(SkyBoxName);
 }
 

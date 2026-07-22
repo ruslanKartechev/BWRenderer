@@ -4,8 +4,8 @@
 #include "GraphicsGL.h"
 
 
-Transform& GameScene::GetTransformForObject(Handle& renderObjectHandle) {
-    RenderObject& obj = renderObjects.GetItemRef(renderObjectHandle);
+Transform& GameScene::GetTransformForObject(Handle& objectHandle) {
+    RenderObject& obj = worldObjectsPool.GetItemRef(objectHandle);
     return transforms.GetItemRef(obj.hTransform);
 }
 
@@ -24,10 +24,10 @@ Handle GameScene::NewObject_SingleSubMesh(const char *name,
     Handle hMaterial)
 {
 
-    Handle handleRenderObj = renderObjects.GetFreeHandle();
+    Handle handleRenderObj = worldObjectsPool.GetFreeHandle();
     Handle handleTransform = transforms.GetFreeHandle();
     Transform &tr = transforms.GetItemRef(handleTransform);
-    RenderObject &obj = renderObjects.GetItemRef(handleRenderObj);
+    RenderObject &obj = worldObjectsPool.GetItemRef(handleRenderObj);
 
     Transform_Init(tr);
     obj.hTransform = handleTransform;

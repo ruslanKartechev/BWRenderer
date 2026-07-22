@@ -11,54 +11,56 @@ class AssetManager {
 public:
 
     // Default Shaders
-    Handle shaderDefault3D;
-    Handle shaderDefault3DLight;
+    ShaderHandle shaderDefault3D;
+    ShaderHandle shaderDefault3DLight;
+    ShaderHandle shaderDefault2D;
+    ShaderHandle shaderDefaultSkybox;
+    ShaderHandle shaderFallback;
+    ShaderHandle shaderLightDebug;
+    ShaderHandle shaderScreenRenderTexture;
+    ShaderHandle shaderTerrain;
+    ShaderHandle uiQuad;
 
-    Handle shaderDefault2D;
-    Handle shaderDefaultSkybox;
-    Handle shaderFallback;
-    Handle shaderLightDebug;
-    Handle shaderScreenRenderTexture;
     // Dev
-    Handle shaderDepthOnly;
-    Handle shaderNormalsOnly;
-    Handle shaderColorOnly;
-
+    ShaderHandle shaderDepthOnly;
+    ShaderHandle shaderNormalsOnly;
+    ShaderHandle shaderColorOnly;
     // Post Process Shaders
-    Handle shaderSSR;
-    Handle shaderBloomDownsampleFirst;
-    Handle shaderBloomDownsample;
-    Handle shaderBloomUpSample;
-    Handle shaderBloomComposite;
-
-    Handle shaderBlur;
-    Handle shaderColorCorrection;
+    ShaderHandle shaderSSR;
+    ShaderHandle shaderBloomDownsampleFirst;
+    ShaderHandle shaderBloomDownsample;
+    ShaderHandle shaderBloomUpSample;
+    ShaderHandle shaderBloomComposite;
+    ShaderHandle shaderBlur;
+    ShaderHandle shaderColorCorrection;
+    
 
     // Default Materials
-    Handle materialDebug;
-    Handle materialSkybox;
-    Handle materialDefault3d;
-    Handle materialDefault2d;
+    MaterialHandle materialDebug;
+    MaterialHandle materialSkybox;
+    MaterialHandle materialDefault3d;
+    MaterialHandle materialDefault2d;
+
 
     // Default meshes
-    Handle meshCube;
-    Handle meshSphere;
-    Handle meshCapsule;
-    Handle meshPlane;
-    Handle meshQuad;
-    Handle meshPyramid;
-    Handle meshDonut;
-    Handle meshCutCone;
+    MeshHandle meshCube;
+    MeshHandle meshSphere;
+    MeshHandle meshCapsule;
+    MeshHandle meshPlane;
+    MeshHandle meshQuad;
+    MeshHandle meshPyramid;
+    MeshHandle meshDonut;
+    MeshHandle meshCutCone;
+
+    // Default Textures
+    TextureHandle defaultWhiteTexture = {};
+    TextureHandle defaultNormal = {};
 
     // Per-type data storage
     SlotMap<Shader> shaders = {};
     SlotMap<Material> materials = {};
     SlotMap<Texture> textures = {};
     SlotMap<Mesh> meshes = {};
-
-    // Textures
-    Handle defaultWhiteTexture = {};
-    Handle defaultNormal = {};
 
 
     static std::string GetGlobalPath(const char* resourcesPath);
@@ -86,7 +88,7 @@ public:
      */
     static bool LoadTextureAtPath(Texture& texture, const char* relativePath, bool uploadToGPU);
 
-    static bool LoadTextureCubemap(Texture& texture, std::vector<std::string>& facePaths);
+    static bool LoadTextureCubeMap6Face(Texture& texture, std::vector<std::string>& facePaths);
 
     Texture& GetNewTextureObject(Handle& outHandle);
 
@@ -103,11 +105,12 @@ public:
     Shader& GetShaderSSR();
     Shader& GetShaderBloom();
 
-    Handle FindTextureByName(const char* name);
+    TextureHandle FindTextureByName(const char* name);
 
-    Handle FindShaderByName(const char* name);
+    ShaderHandle FindShaderByName(const char* name);
 
-    Handle FindMeshByName(const char* name);
+    MeshHandle FindMeshByName(const char* name);
+
 
 private:
     Handle ParseIntoRenderObject(const aiNode* node, const aiScene& aiScene, GameScene& gameScene);
