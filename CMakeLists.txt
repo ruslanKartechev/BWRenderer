@@ -5,26 +5,24 @@ set(CMAKE_CXX_STANDARD 23)
 
 add_library(assimp SHARED IMPORTED)
 
-
 set_target_properties(assimp PROPERTIES IMPORTED_LOCATION_RELEASE "${CMAKE_CURRENT_SOURCE_DIR}/assimp/release/assimp-vc143-mt.dll")
 set_target_properties(assimp PROPERTIES IMPORTED_LOCATION_DEBUG "${CMAKE_CURRENT_SOURCE_DIR}/assimp/debug/assimp-vc143-mt.dll")
-
 set_target_properties(assimp PROPERTIES IMPORTED_IMPLIB_RELEASE "${CMAKE_CURRENT_SOURCE_DIR}/assimp/release/assimp-vc143-mt.lib")
 set_target_properties(assimp PROPERTIES IMPORTED_IMPLIB_DEBUG "${CMAKE_CURRENT_SOURCE_DIR}/assimp/debug/assimp-vc143-mt.lib")
-
-
 target_include_directories(assimp INTERFACE "${CMAKE_CURRENT_SOURCE_DIR}/assimp")
 
+add_library(glad glad/src/glad.c)
 
 add_subdirectory("cglm")
 add_subdirectory("stb")
+add_subdirectory("imgui")
 
 include_directories("glad/include")
-add_library(glad glad/src/glad.c)
+include_directories("imgui")
+
 
 
 add_executable( RenderGL  WIN32  main.cpp
-        PlatformWin32.cpp
         Shader.h
         Shader.cpp
         AssetManager.h
@@ -41,7 +39,7 @@ add_executable( RenderGL  WIN32  main.cpp
         SlotsMap.h
         Mesh.h
         Mesh.cpp
-        DataStructures.h
+        Light.h
         RenderObject.cpp
         RenderObject.h
         GameScene.cpp
@@ -75,10 +73,16 @@ add_executable( RenderGL  WIN32  main.cpp
         NoiseGenerator.h
         uiObject.cpp
         uiObject.h
+        NoiseData.h
+        SplatMapData.h
+        myGui.cpp
+        myGui.h
+        ProgramWindow.cpp
+        ProgramWindow.h
 )
 
 
-target_link_libraries(RenderGL glad opengl32 cglm stb_lib gdi32 winmm assimp)
+target_link_libraries(RenderGL glad opengl32 cglm stb_lib gdi32 winmm assimp imgui_lib)
 
 
 message(STATUS "POST BUILD 1...")

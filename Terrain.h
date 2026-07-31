@@ -1,41 +1,57 @@
 #pragma once
 #include "MyTypes.h"
-#include "Mesh.h"
-#include "RenderMode.h"
 #include "RenderObject.h"
 #include "Handle.h"
+#include "NoiseGenerator.h"
+#include "SplatMapData.h"
+#include "NoiseData.h"
 
 class Terrain {
 public:
-    Handle hMaterial = {};
-    Handle hTransform = {};
-    float width;
-    float height;
+
+    MaterialHandle hMaterial = {};
+    TransformHandle hTransform = {};
+
+    NoiseData heightData {};
+    SplatMapData terrainSplat {};
+
+    TextureHandle hNoiseTex;
+    TextureHandle hSplatMapTex;
+
     GLuint vao;
     GLuint vbo;
     GLuint ebo;
 
-    void GenerateMeshData();
-    void FreeData();
-    float* GetVertexDataPtr();
-    int* GetIndexDataPtr();
+    f32 width;
+    f32 height;
 
-    int vertexDataCount;
-    int indexCount;
-    int stride;
-    int startIndexVertex = -1;
-    int startIndexUV = -1;
-    int startIndexColor = -1;
-    int startIndexNormals = -1;
-    int startIndexTangent = -1;
-    int cellsCountX;
-    int cellsCountY;
+    i32 vertexDataCount;
+    i32 indexCount;
+    i32 stride;
+    i32 startIndexVertex = -1;
+    i32 startIndexUV = -1;
+    i32 startIndexColor = -1;
+    i32 startIndexNormals = -1;
+    i32 startIndexTangent = -1;
+    i32 cellsCountX;
+    i32 cellsCountY;
 
     bool isBuilt;
 
+    void SetSize(i32 cellsX, i32 cellsY);
+
+    void GenerateMeshData();
+
+    void FreeData();
+
+    float* GetVertexDataPtr();
+
+    int* GetIndexDataPtr();
+
+
 private:
-    float* vertexData = nullptr;
-    int* indexData = nullptr;
+    f32* vertexData = nullptr;
+    i32* indexData = nullptr;
 
 };
 

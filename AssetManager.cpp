@@ -312,13 +312,13 @@ bool AssetManager::LoadTexturesForMaterials(Material& material) {
 }
 
 
+
 bool AssetManager::LoadTextureAtPath(Texture &texture, const char *relativePath, bool uploadToGPU) {
     int sizeX = 0;
     int sizeY = 0;
     int nrChannels = 0;
     texture.name = relativePath;
     texture.isLoaded = false;
-    texture.name = relativePath;
     texture.FreeData();
 
     std::string assetPath = GetGlobalPathTextures(relativePath);
@@ -356,7 +356,7 @@ bool AssetManager::LoadTextureCubeMap6Face(Texture& texture, std::vector<std::st
 
     texture.glHandle = textureID;
     texture.isLoaded = true;
-    texture.SetPixelFormat(Texture::TEX_FORMAT_SkyBox);
+    texture.SetPixelFormat(Texture::TEX_FORMAT_CUBEMAP);
 
     stbi_set_flip_vertically_on_load(false);
 

@@ -2,7 +2,7 @@
 #include <sstream>
 #include <fstream>
 #include <iostream>
-#include "ProjectDefines.h"
+#include "MyTypes.h"
 
 std::string ProjectSettings::RootPath = {};
 std::string ProjectSettings::ResourcesPath = {};

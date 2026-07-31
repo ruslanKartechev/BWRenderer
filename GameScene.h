@@ -1,6 +1,6 @@
 #pragma once
 #include "Transform.h"
-#include "DataStructures.h"
+#include "Light.h"
 #include "RenderObject.h"
 #include "Skybox.h"
 #include "Camera.h"

@@ -5,24 +5,22 @@
 
 // #define LOG
 
+void Terrain::SetSize(i32 cellsX, i32 cellsY) {
+    cellsCountX = cellsX;
+    cellsCountY = cellsY;
 
+}
 
 
 void Terrain::GenerateMeshData() {
-    constexpr int cellsX = 100;
-    constexpr int cellsY = 100;
-
-    constexpr int vertexCountX = cellsX + 1;
-    constexpr int vertexCountY = cellsY + 1;
-
-    constexpr int totalVertices = vertexCountX * vertexCountY;
-    constexpr int totalCells = cellsX * cellsY;
-
-    constexpr float stepX = 1.0f;
-    constexpr float stepY = 1.0f;
-
-    constexpr int DATA_COUNT = (2 + 3) * totalVertices;
-    constexpr int TRIG_IND_COUNT = totalCells * 6;
+    int vertexCountX = cellsCountX + 1;
+    int vertexCountY = cellsCountY + 1;
+    int totalVertices = vertexCountX * vertexCountY;
+    int totalCells = cellsCountX * cellsCountY;
+    float stepX = 1.0f;
+    float stepY = 1.0f;
+    int DATA_COUNT = (2 + 3) * totalVertices;
+    int TRIG_IND_COUNT = totalCells * 6;
 
     float offsetX = -1.0 * vertexCountX * .5f * stepX;
     float offsetY = -1.0 * vertexCountY * .5f * stepY;
@@ -31,8 +29,6 @@ void Terrain::GenerateMeshData() {
     this->indexData = new int[TRIG_IND_COUNT];
     this->vertexDataCount = DATA_COUNT;
     this->indexCount = TRIG_IND_COUNT;
-    this->cellsCountX = cellsX;
-    this->cellsCountY = cellsY;
 
     this->stride = 5;
     this->startIndexVertex = 0;
@@ -43,7 +39,7 @@ void Terrain::GenerateMeshData() {
 
     size_t vIdx = 0;
     for (size_t y = 0; y < vertexCountY; y++) {
-        float v = (float)y / cellsY;
+        float v = (float)y / vertexCountY;
 
         for (size_t x = 0; x < vertexCountX; x++) {
 
@@ -51,7 +47,7 @@ void Terrain::GenerateMeshData() {
             float coordY = 0.0f;
             float coordZ = y * stepY + offsetY;
 
-            float u = (float)x / cellsX;
+            float u = (float)x / vertexCountX;
             vertexData[vIdx++] = coordX;
             vertexData[vIdx++] = coordY;
             vertexData[vIdx++] = coordZ;
@@ -61,8 +57,9 @@ void Terrain::GenerateMeshData() {
     }
 
     size_t iIdx = 0;
-    for (size_t y = 0; y < cellsY; y++) {
-        for (size_t x = 0; x < cellsX; x++) {
+    for (size_t y = 0; y < cellsCountY; y++) {
+
+        for (size_t x = 0; x < cellsCountX; x++) {
             int topLeft = y * vertexCountX + x;
             int topRight = topLeft + 1;
             int bottomLeft = (y + 1) * vertexCountX + x;
@@ -108,6 +105,7 @@ void Terrain::GenerateMeshData() {
     }
 #endif
 }
+
 
 void Terrain::FreeData() {
     if (vertexData != nullptr) {

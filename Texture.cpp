@@ -111,3 +111,18 @@ void Texture::GenerateDefaultNormalTexture(i32 dim) {
     delete[] pixelsBytePtr;
     pixelsBytePtr = nullptr;
 }
+
+
+void Texture::SetHeightMapData(NoiseData& data) {
+    SetPixelFormat(Texture::TEX_FORMAT_R32);
+    SetSize(data.sizeX, data.sizeY);
+    SetChannelCount(1);
+    SetFloatDataPtr(data.dataPtr);
+}
+
+void Texture::SetSplatMapData(SplatMapData& data) {
+    SetPixelFormat(Texture::TEX_FORMAT_sRGB32);
+    SetSize(data.sizeX, data.sizeY);
+    SetChannelCount(data.stride);
+    SetBytePixelsPtr(data.dataPtr);
+}

@@ -1,27 +1,23 @@
 #pragma once
 #include "MyTypes.h"
+#include "SplatMapData.h"
+#include "NoiseData.h"
+
 
 class NoiseGenerator{
 public:
+    static bool GeneratePerlin(NoiseData& data);
 
-    i32 sizeX;
-    i32 sizeY;
-    i32 octaves = 8;
+    static bool GenerateSplatMapForTerrain(SplatMapData& splat, NoiseData& terrainNoise);
 
-    void GeneratePerlin();
-    bool IsGenerated() const;
-    bool FreeData();
+    static bool FreeDataSplat(SplatMapData& splat);
 
-    f32* GetDataPtr();
-    imax GetDataArraySize();
+    static bool FreeDataNoise(NoiseData& splat);
 
 
 private:
-    f32* dataPtr;
-    imax arraySize;
-    bool isGenerated;
 
-    double ValueNoise_2D(double x, double y);
+    static double ValueNoise_2D(double x, double y, i32 octaves);
 
 };
 

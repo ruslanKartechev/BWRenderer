@@ -10,8 +10,6 @@
 #include "NoiseGenerator.h"
 
 
-constexpr f32 LightDebugScale = .25f;
-
 static MaterialHandle h_mat_Floor;
 static MaterialHandle h_mat_Table;
 static MaterialHandle h_mat_Metal;
@@ -22,20 +20,32 @@ static MeshHandle hMeshTable = {};
 static MeshHandle hMeshTree = {};
 static MeshHandle hMeshLamp = {};
 
+constexpr f32 LightDebugScale = .25f;
+
+static Handle h_objUIQuad;
+static TextureHandle h_noiseTex;
+static MaterialHandle h_matUI;
+static NoiseGenerator noiseGen = {};
+
+const char* noiseTexName = "TerrainHeight";
+const char* splatMapTexName = "TerrainSplatMap";
+
+static TextureHandle h_sandTex;
+static TextureHandle h_grassTex;
+static TextureHandle h_rockTex;
+
+constexpr i32 NoiseSizeX = 256;
+constexpr i32 NoiseSizeY = 256;
+constexpr float TerrainHeightScale = 12.5f;
+
 static std::shared_ptr<InstancedBuffer> treesInstanceBuffer = std::make_shared<InstancedBuffer>();
 
 
-void LoadDefaultTextures(AssetManager& assets) {
-    {
-        Handle h = {};
-        Texture& texture = assets.GetNewTextureObject(h);
-        AssetManager::LoadTextureAtPath(texture, "back1.jpg", true);
-    }
+void LoadTextures(AssetManager& assets) {
 }
 
 
 void LoadMaterials(AssetManager& assets) {
-    const char* defaultShaderName = "Default3D";
     // Floor
     {
         auto& material = assets.materials.GetNewObjectAndHandle(h_mat_Floor);
@@ -96,22 +106,12 @@ void LoadMaterials(AssetManager& assets) {
 
         GL_InitMaterialProperties(material, assets);
     }
-    // Terrain
-    {
-        auto& material = assets.materials.GetNewObjectAndHandle(h_mat_Terrain);
-        material.shaderName = "Terrain";
-        material.SetFloatDefinition(ID_SMOOTHNESS, 0.4f);
-        constexpr float shade = .5f;
-        material.SetVectorDefinition(ID_COLOR_TINT, {shade, shade, shade, 1.0});
-        GL_InitMaterialProperties(material, assets);
-    }
 }
 
 
 void LoadMeshes(AssetManager& assets) {
     std::vector<ObjectDefinition> definitions = {};
-
-    // table
+    // Table
     {
         definitions.clear();
         assets.LoadDefinitions("picnic_table.fbx", definitions);
@@ -191,6 +191,7 @@ void PlaceTrees(AssetManager& assets, GameScene& scene) {
     }
 
 }
+
 
 void PlaceDefaultShapes(AssetManager& assets, GameScene& scene) {
     float posGeomZ = -2.5f;
@@ -311,35 +312,96 @@ void PlaceCustomShapes(AssetManager& assets, GameScene& scene) {
 void BuildTerrain(AssetManager& assets, GameScene& scene) {
 
     std::cout << "BUILDING TERRAIN" << std::endl;
-    Terrain& terr = scene.terrain;
+    Terrain& terrain = scene.terrain;
+    terrain.SetSize(NoiseSizeX, NoiseSizeY);
+    terrain.height = TerrainHeightScale;
 
-    terr.hMaterial = h_mat_Terrain;
-    Transform& transform = scene.transforms.GetNewObjectAndHandle(terr.hTransform);
+    Texture& noiseTexture = assets.textures.GetNewObjectAndHandle(terrain.hNoiseTex);
+    Texture& splatTexture = assets.textures.GetNewObjectAndHandle(h_noiseTex);
+    noiseTexture.name = noiseTexName;
+    splatTexture.name = splatMapTexName;
+    terrain.heightData.scale = TerrainHeightScale;
+    terrain.heightData.sizeX = NoiseSizeX;
+    terrain.heightData.sizeY = NoiseSizeY;
+    terrain.heightData.octaves = 10;
+
+    NoiseGenerator::GeneratePerlin(terrain.heightData);
+    NoiseGenerator::GenerateSplatMapForTerrain(terrain.terrainSplat, terrain.heightData);
+
+    noiseTexture.SetHeightMapData(terrain.heightData);
+    splatTexture.SetSplatMapData(terrain.terrainSplat);
+
+    noiseTexture.UploadToGL(false);
+    splatTexture.UploadToGL(false);
+
+    // Terrain textures
+    {
+        Texture& texture = assets.textures.GetNewObjectAndHandle(h_sandTex);
+        assets.LoadTextureAtPath(texture, "Terrain/SandLarge_a.png", true);
+        texture.name = "terrain_sand";
+    }
+    {
+        Texture& texture = assets.textures.GetNewObjectAndHandle(h_grassTex);
+        assets.LoadTextureAtPath(texture, "Terrain/Terrain_Grass_A.png", true);
+        texture.name = "terrain_grass";
+    }
+    {
+        Texture& texture = assets.textures.GetNewObjectAndHandle(h_rockTex);
+        assets.LoadTextureAtPath(texture, "Terrain/gravel_1k.jpg", true);
+        texture.name = "terrain_rock";
+    }
+
+    // Terrain Material
+    {
+        auto& material = assets.materials.GetNewObjectAndHandle(h_mat_Terrain);
+        material.shaderName = "Terrain";
+
+        material.SetTextureDefinition(TEX_HEIGHT_MAP, noiseTexName, 0);
+        material.SetTextureDefinition(TEX_SPLAT_MAP, splatMapTexName, 1);
+
+        material.SetTextureDefinition(TEX_TERRAIN_TEX_1, "terrain_rock", 2);
+        material.SetTextureDefinition(TEX_TERRAIN_TEX_2, "terrain_sand", 3);
+        material.SetTextureDefinition(TEX_TERRAIN_TEX_3, "terrain_grass", 4);
+        material.SetTextureDefinition(TEX_TERRAIN_TEX_4, "terrain_rock", 5);
+
+        material.SetFloatDefinition(TERRAIN_HEIGHT_SCALE, TerrainHeightScale);
+        material.SetFloatDefinition(ID_SMOOTHNESS, 0.01f);
+        constexpr float shade = .5f;
+        material.SetVectorDefinition(ID_COLOR_TINT, {shade, shade, shade, 1.0});
+
+        GL_InitMaterialProperties(material, assets);
+    }
+
+    terrain.hMaterial = h_mat_Terrain;
+
+    Transform& transform = scene.transforms.GetNewObjectAndHandle(terrain.hTransform);
     Transform_Init(transform);
     SET_VEC3(transform.position, 0.0f, -0.1f, 0.0f);
     Transform_SetRotationEulerDeg(transform, 0.0, 0.0, 0.0);
     Transform_UpdateMatrices(transform);
 
-    terr.GenerateMeshData();
-    GL_AllocateGraphicsTerrain(terr);
+    terrain.GenerateMeshData();
+    GL_AllocateGraphicsTerrain(terrain);
 }
+
 
 
 void PlaceObjectsToScene(AssetManager& assets, GameScene& scene) {
-    //Floor
-    {
-        vec3 pos = {0.0, -0.5f, 0.0f};
-        vec3 rot = {0.0f, 0.0f, 0.0f};
-        vec3 scale = {32.0f, 1.0f, 32.0f};
-        Handle objHandle = scene.NewObject_SingleSubMesh("FloorPlane", assets.meshCube, pos, rot, scale, h_mat_Floor);
-        scene.activeWorldHandles.push_back(objHandle);
-    }
+    BuildTerrain(assets, scene);
+
+    // //Floor
+    // {
+    //     vec3 pos = {0.0, -0.5f, 0.0f};
+    //     vec3 rot = {0.0f, 0.0f, 0.0f};
+    //     vec3 scale = {32.0f, 1.0f, 32.0f};
+    //     Handle objHandle = scene.NewObject_SingleSubMesh("FloorPlane", assets.meshCube, pos, rot, scale, h_mat_Floor);
+    //     scene.activeWorldHandles.push_back(objHandle);
+    // }
     // PlaceDefaultShapes(assets, scene);
     PlaceCustomShapes(assets, scene);
 
-    BuildTerrain(assets, scene);
-    std::cout << "Building Terrain completed" << std::endl;
 }
+
 
 
 void PlaceCamera(GameScene& scene) {
@@ -355,11 +417,6 @@ void InitSceneLights(GameScene& scene){
     Light& light = scene.mainLight;
     Transform& lightTransform = scene.transforms.GetNewObjectAndHandle(light.transformHandle);
     light.lightType = ELightType::Directional;
-    // light.intensity = 0.5f;
-    // SET_VEC3(light.color, 1.0f, 1.0f, 1.0f);
-    // scene.ambientIntensity = .05f;
-    // const float bright = .8f;
-    // SET_VEC3(scene.ambientLightColor, bright, bright, bright);
 
     vec3 pos = {0.0f, 10.0f, -20.0f};
     vec3 eulers = {0.0f, 0.0f, 0.0f};
@@ -369,7 +426,6 @@ void InitSceneLights(GameScene& scene){
     Transform_RotateWorldY(lightTransform, 30.0);
     Transform_RotateLocalX(lightTransform, 50.0);
 }
-
 
 
 
@@ -402,25 +458,10 @@ void InitInstanceBuffers(AssetManager& assets) {
 
 
 
-static Handle h_debugUIQuad;
-static TextureHandle h_noiseTex;
-static MaterialHandle h_matUI;
-static NoiseGenerator noiseGen = {};
 
-constexpr i32 NoiseSizeX = 200;
-constexpr i32 NoiseSizeY = 200;
 
 void InitNoiseDebugUI(Engine& engine) {
-
-    std::cout << "Generating Noise" << std::endl;
-    noiseGen.sizeX = NoiseSizeX;
-    noiseGen.sizeY = NoiseSizeY;
-    noiseGen.octaves = 8;
-    noiseGen.GeneratePerlin();
-
-    std::cout << "Initializing debug NoiseTextureView" << std::endl;
-
-    UIObject& obj = engine.scene.uiObjectsPool.GetNewObjectAndHandle(h_debugUIQuad);
+    UIObject& obj = engine.scene.uiObjectsPool.GetNewObjectAndHandle(h_objUIQuad);
     Material& uiMat = engine.assetManager.materials.GetNewObjectAndHandle(h_matUI);
     uiMat.shaderName = "UIQuad";
     uiMat.vectorsDefinitions.clear();
@@ -429,30 +470,20 @@ void InitNoiseDebugUI(Engine& engine) {
     obj.hMaterial = h_matUI;
 
     SET_VEC2(obj.position, 10, 10);
-    SET_VEC2(obj.size, NoiseSizeX, NoiseSizeY);
-
+    SET_VEC2(obj.size, 200, 200);
     GL_AllocateGUIQuad(obj);
-    engine.scene.activeUIHandles.push_back(h_debugUIQuad);
+    engine.scene.activeUIHandles.push_back(h_objUIQuad);
 
-    f32* noiseTexPtr = noiseGen.GetDataPtr();
-
-    const char* noiseTexName = "Noise_Debug";
-    Texture& noiseTexture = engine.assetManager.textures.GetNewObjectAndHandle(h_noiseTex);
-    noiseTexture.name = noiseTexName;
-    noiseTexture.SetPixelFormat(Texture::TEX_FORMAT_R32);
-    noiseTexture.SetSize(noiseGen.sizeX, noiseGen.sizeY);
-    noiseTexture.SetChannelCount(1);
-    noiseTexture.SetFloatDataPtr(noiseTexPtr);
-    noiseTexture.UploadToGL(false);
-
-    uiMat.SetTextureDefinition(ID_MAIN_TEXTURE, noiseTexName, 0);
+    uiMat.SetTextureDefinition(ID_MAIN_TEXTURE, splatMapTexName, 0);
     GL_InitMaterialProperties(uiMat, engine.assetManager);
-
 }
+
+
 
 
 void RunGameSceneInit() {
     auto& engine = *Engine::GetInstance();
+    LoadTextures(engine.assetManager);
 
     LoadMeshes(engine.assetManager);
     LoadMaterials(engine.assetManager);
@@ -460,8 +491,6 @@ void RunGameSceneInit() {
     InitSceneLights(engine.scene);
     PlaceObjectsToScene(engine.assetManager, engine.scene);
 
-
-    InitNoiseDebugUI(engine);
-
     InitInstanceBuffers(engine.assetManager);
+    InitNoiseDebugUI(engine);
 }

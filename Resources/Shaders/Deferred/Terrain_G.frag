@@ -3,10 +3,11 @@
 layout(location = 0) out vec4 gAlbedoSmoothness;
 layout(location = 1) out vec4 gNormal;
 
-layout(binding = 0) uniform sampler2D _BASE_MAP;
-layout(binding = 1) uniform sampler2D _NORMAL_MAP;
-layout(binding = 2) uniform sampler2D _HEIGHT_MAP;
-
+layout(binding = 1) uniform sampler2D _SPLAT_MAP;
+layout(binding = 2) uniform sampler2D _TERRAIN_TEX_1;
+layout(binding = 3) uniform sampler2D _TERRAIN_TEX_2;
+layout(binding = 4) uniform sampler2D _TERRAIN_TEX_3;
+layout(binding = 5) uniform sampler2D _TERRAIN_TEX_4;
 
 in vec4 out_vertColor;
 in vec2 v_uv;
@@ -18,15 +19,29 @@ uniform float _METALLIC;
 uniform float _SMOOTHNESS;
 uniform float _SSR_POWER;
 uniform vec4 _BASE_MAP_TO;
+uniform vec4 _SIZE;
 
 
 void main(){
-    vec2 uv = (v_uv * _BASE_MAP_TO.xy) + _BASE_MAP_TO.zw;
-    vec4 texColor = texture(_BASE_MAP, uv) * out_vertColor;
-    vec3 normal = vec3(0.0, 1.0, 0.0);
+    vec2 uv = v_uv;
+    vec2 scaledUV = v_uv * _SIZE.xy;
+    scaledUV = fract(scaledUV);
 
-//    gAlbedoSmoothness = vec4(texColor.rgb, _SMOOTHNESS);
-    gAlbedoSmoothness = vec4(out_vertColor.xyz, 0.25);
+    vec4 splatMask = texture(_SPLAT_MAP, uv);
+    float w1 = splatMask.x;
+    float w2 = splatMask.y;
+    float w3 = splatMask.z;
+    float w4 = splatMask.w;
 
-    gNormal = vec4(normal, _SSR_POWER);
+    vec4 col1 = texture(_TERRAIN_TEX_1, scaledUV) * w1;
+    vec4 col2 = texture(_TERRAIN_TEX_2, scaledUV) * w2;
+    vec4 col3 = texture(_TERRAIN_TEX_3, scaledUV) * w3;
+    vec4 col4 = texture(_TERRAIN_TEX_4, scaledUV) * 0;
+    vec4 finalColor = col1 + col2 + col3 + col4;
+    finalColor = clamp(finalColor, 0.0, 1.0) * out_vertColor;
+//    finalColor = finalColor * out_vertColor;
+//    finalColor = vec4(scaledUV.x, scaledUV.y, 0.0, 1.0);
+
+    gAlbedoSmoothness = vec4(finalColor.xyz, _SMOOTHNESS);
+    gNormal = vec4(out_normal, _SSR_POWER);
 }

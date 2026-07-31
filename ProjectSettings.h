@@ -1,6 +1,5 @@
 #pragma once
 #include "string"
-#include "MyTypes.h"
 #include "cglm/cglm.h"
 
 class ProjectSettings {
@@ -42,8 +41,6 @@ public:
     bool DevRenderColors;
 
     static bool LoadProjectSettings(const std::string& filePath, ProjectSettings& outSettings);
-
-
 
 };
 

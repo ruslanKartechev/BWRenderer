@@ -58,3 +58,12 @@ inline const char* MESH_CUT_CONE = "cutCone";
 
 inline const char* TEX_DEFAULT_NORMAL = "default_normal";
 inline const char* TEX_DEFAULT_WHITE = "default_white";
+
+inline const char* TEX_HEIGHT_MAP = "_HEIGHT_MAP";
+inline const char* TEX_SPLAT_MAP = "_SPLAT_MAP";
+
+inline const char* TEX_TERRAIN_TEX_1 = "_TERRAIN_TEX_1";
+inline const char* TEX_TERRAIN_TEX_2 = "_TERRAIN_TEX_2";
+inline const char* TEX_TERRAIN_TEX_3 = "_TERRAIN_TEX_3";
+inline const char* TEX_TERRAIN_TEX_4 = "_TERRAIN_TEX_4";
+inline const char* TERRAIN_HEIGHT_SCALE = "_HEIGHT_SCALE";

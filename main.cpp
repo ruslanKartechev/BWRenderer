@@ -1,20 +1,17 @@
+#include "SceneDefinition.h"
 #include <iostream>
 #include <vector>
-#include <glad/glad.h>
 #include <filesystem>
 #include "InputSystem.h"
-#include "PlatformWin32.h"
 #include "Shader.h"
 #include "Texture.h"
 #include "GameTime.h"
 #include "Transform.h"
 #include "GameScene.h"
 #include "Camera.h"
-
-#include "DataStructures.h"
+#include "Light.h"
 #include "cglm/cglm.h"
 #include "cglm/clipspace/persp_lh_no.h"
-
 #include "RenderObject.h"
 #include "AssetManager.h"
 #include "SlotsMap.h"
@@ -22,38 +19,22 @@
 #include "RenderSubMesh.h"
 #include "Uniforms.h"
 #include "Skybox.h"
-#include "ShaderWatcher.h"
 #include "Engine.h"
-#include "SceneDefinition.h"
-#include "ProjectDefines.h"
+#include "ShaderWatcher.h"
+#include "ProgramWindow.h"
+#include "myGui.h"
+#include <windows.h>
 
-#define LOG(str) do {printf("%s\n", str);}while(false);
-#define LOG2(str1, str2) do {printf("%s1 %s2\n", str1, str2); }while(false);
-#define LOG3(str1, str2, str3) do {printf("%s1 %s2 %s3\n", str1, str2, str3); }while(false);
+#define LOG(str) do {printf("%s\n", str);} while(false);
+#define LOG2(str1, str2) do {printf("%s1 %s2\n", str1, str2); } while(false);
+#define LOG3(str1, str2, str3) do {printf("%s1 %s2 %s3\n", str1, str2, str3); } while(false);
 
 #define STR_VEC2(vec) "[" << vec[0]<< ", " << vec[1] << "]";
 #define STR_VEC3(vec) "[" << vec[0]<< ", " << vec[1] << ", " << vec[2] << "]";
 #define STR_VEC4(vec) "[" << vec[0]<< ", " << vec[1] << ", " << vec[2] << ", " << vec[3] << "]";
 
-
-// region Graphics Data Structures
-typedef struct {
-    size_t quadCountMax;
-    int currentQuadsCount;
-    int idxCount;
-
-    GLuint vao;
-    GLuint vbo;
-    GLuint ebo;
-    GLuint shaderId;
-} FrameBufferUI;
-
-
-// endregion
-
-
 // region Static Data
-static WindowParams mainWin = {};
+static ProgramWindow mainWin = {};
 
 static Engine* EnginePtr = nullptr;
 
@@ -72,72 +53,12 @@ void AddDebugGeometryForLights(GameScene& scene, AssetManager& assets) {
 }
 
 
-
-void LogHandle(const char* msg, const Handle& handle) {
-    printf(msg);
-    printf(" Handle(%d, %d)\n", handle.index, handle.generation);
-}
-
-
-void InitBackground(FrameBufferUI& fbBackground) {
-    // actual background quad with UV and Color
-    float vertexData[32] = {
-        // x,  y,       u,    v,     r,    g,    b,    a
-        -1.0f, -1.0f,   0.0f, 0.0f,  1.0f, 0.0f, 0.0f, 1.0f,
-        -1.0f, +1.0f,   0.0f, 1.0f,  0.0f, 1.0f, 0.0f, 1.0f,
-        +1.0f, +1.0f,   1.0f, 1.0f,  0.0f, 0.0f, 1.0f, 1.0f,
-        +1.0f, -1.0f,   0.0f, 1.0f,  0.0f, 0.0f, 0.0f, 1.0f,
-    };
-
-    constexpr int startIdxCount = 6;
-
-    unsigned int indices[startIdxCount] = {
-        0, 2, 1, // Trig 1
-        0, 3, 2  // Trig 2
-    };
-
-    GLuint vao;
-    GLuint vbo;
-    GLuint ebo;
-    glGenVertexArrays(1, &vao);
-    glGenBuffers(1, &vbo);
-    glGenBuffers(1, &ebo);
-
-    glBindVertexArray(vao);
-
-    glBindBuffer(GL_ARRAY_BUFFER, vbo);
-    glBufferData(GL_ARRAY_BUFFER, sizeof(vertexData), vertexData, GL_STATIC_DRAW);
-
-    glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, ebo);
-    glBufferData(GL_ELEMENT_ARRAY_BUFFER, sizeof(indices), indices, GL_STATIC_DRAW);
-
-    glEnableVertexAttribArray(0);
-    glEnableVertexAttribArray(1);
-    glEnableVertexAttribArray(2);
-    constexpr size_t stride = 8 * sizeof(float);
-    glVertexAttribPointer(0, 2, GL_FLOAT, GL_FALSE, stride, (const void*)0); // XY
-    glVertexAttribPointer(1, 2, GL_FLOAT, GL_TRUE, stride, (const void*)(2*sizeof(float))); // UV
-    glVertexAttribPointer(2, 4, GL_FLOAT, GL_FALSE, stride, (const void*)(4*sizeof(float))); // RGBA
-
-    glBindVertexArray(0);
-
-    fbBackground.vao = vao;
-    fbBackground.vbo = vbo;
-    fbBackground.ebo = ebo;
-    fbBackground.currentQuadsCount = 2;
-    fbBackground.idxCount = startIdxCount;
-    fbBackground.shaderId = EnginePtr->assetManager.GetDefault2D().GetShaderId();
-}
-
-
-
 void LoadSkybox(Skybox& skyBox) {
     GL_AllocateGraphicsSkybox(skyBox.renderData);
     auto& assets = EnginePtr->assetManager;
     Material& material = assets.materials.GetItemRef(assets.materialSkybox);
     skyBox.renderData.hMaterial = assets.materialSkybox;
     GL_InitMaterialProperties(material, assets);
-
 }
 
 
@@ -400,17 +321,22 @@ void InitCamera() {
 }
 
 
+
 // region Loops
+
 void StartFrame() {
     Camera& camera = EnginePtr->scene.camera;
     camera.UpdateAspectRationWidthHeight(static_cast<float>(mainWin.width), static_cast<float>(mainWin.height));
     Transform& cameraTransform = EnginePtr->scene.transforms.GetItemRef(camera.transformHandle);
     camera.UpdateMatrices(cameraTransform);
+    EnginePtr->gui.StartFrame();
+
 }
 
 void EndFrame() {
     SwapBuffers(mainWin.dc);
     EnginePtr->shaderWatcher.ProcessReloads();
+    EnginePtr->gui.EndFrame();
 }
 
 
@@ -422,11 +348,6 @@ void UpdateSceneTransforms(GameScene& scene) {
 }
 
 
-void RenderUI() {
-    glDisable(GL_DEPTH_TEST);
-    glDisable(GL_CULL_FACE);
-}
-
 
 void RenderLoop() {
     Engine& eng = *EnginePtr;
@@ -435,12 +356,11 @@ void RenderLoop() {
     StartFrame();
     GL_RenderScene(eng);
 
-    RenderUI();
     EndFrame();
 }
 // endregion
 
-
+static float elapsedTimeMoving = 0.0f;
 
 void ControlCamera() {
     float dt = (float)Time_GetDelta();
@@ -470,8 +390,14 @@ void ControlCamera() {
     }
     vec2 mousePosition;
     Input_GetMousePosition(mousePosition);
+    bool isMoving = localMove[0] != 0 || localMove[1] != 0 || localMove[2] != 0;
+    if (isMoving) {
+        elapsedTimeMoving += Time_GetDelta();
+    }
+    else{
+        elapsedTimeMoving = 0.0;
+    }
 
-    int state = Input_IsMouseButtonHeld(GameInputKey::MOUSE_BUTTON_RIGHT) ? 1 : 0;
     if (Input_IsMouseButtonHeld(GameInputKey::MOUSE_BUTTON_RIGHT)) {
         vec2 mouseDelta;
         Input_GetMouseDelta(mouseDelta);
@@ -488,9 +414,10 @@ void ControlCamera() {
 
     vec3 worldMove;
     Transform_ToWorldVector(cameraTransform, localMove, worldMove);
-    glm_vec3_scale(worldMove, dt * moveSpeed, worldMove);
+    glm_vec3_scale(worldMove, dt * moveSpeed * (1 + elapsedTimeMoving), worldMove);
+
     vec3 verticalMove = {0,1,0};
-    glm_vec3_scale(verticalMove, dt * verticalShift * moveSpeed, verticalMove);
+    glm_vec3_scale(verticalMove, dt * moveSpeed * verticalShift, verticalMove);
     glm_vec3_add(worldMove, verticalMove, worldMove);
     glm_vec3_add(cameraTransform.position, worldMove, cameraTransform.position);
 }
@@ -539,12 +466,11 @@ void ControlSettings() {
         settings.PostProcess_ToneMapping  = !settings.PostProcess_ToneMapping;
         std::cout << "[Render PostProcess_DOF]: " << settings.PostProcess_ToneMapping << std::endl;
     }
-
-
-
 }
 
+
 void ControlsLoop() {
+
     ControlCamera();
     ControlSettings();
 }
@@ -629,11 +555,6 @@ void MakeConsole() {
     }
 }
 
-void SpinWait() {
-    while (true) {
-        Sleep(100);
-    }
-}
 
 
 void CreateEngine() {
@@ -642,57 +563,74 @@ void CreateEngine() {
     InitDefaults();
     engine.UpdateSettings();
     engine.shaderWatcher.WatchSettingsFile();
-
+    engine.gui.InitForWindow(&mainWin);
 }
 
-int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE prevInstance, LPSTR lpCmdLine, int nShowCmd) {
 
-    try {
-        MakeConsole();
 
-        FetchProjectPath(ProjectSettings::RootPath, ProjectSettings::ResourcesPath);
-        printf("-- RootPath %s,  ResourcesPath %s \n", ProjectSettings::RootPath.c_str(), ProjectSettings::ResourcesPath.c_str());
+bool CreateMainWindow(ProgramWindow& window, HINSTANCE hInstance) {
+    MakeConsole();
+    FetchProjectPath(ProjectSettings::RootPath, ProjectSettings::ResourcesPath);
 
-        mainWin.name = "Renderer Window";
-        mainWin.width = 1024;
-        mainWin.height = 700;
-        mainWin.posX = 612;
-        mainWin.posY = 100;
-        mainWin.hInst = hInstance;
-        mainWin.callbackClose = Win_CloseWindow;
-        mainWin.callbackResize = Win_Resize;
-        mainWin.callbackMove = Win_Move;
-        mainWin.callbackResize = Win_Resize;
+    window.name = "Renderer Window";
+    window.width = 1024;
+    window.height = 700;
+    window.posX = 612;
+    window.posY = 100;
+    window.hInst = hInstance;
+    window.callbackClose = Win_CloseWindow;
+    window.callbackResize = Win_Resize;
+    window.callbackMove = Win_Move;
+    window.callbackResize = Win_Resize;
 
-        bool didInit = CreateFirstWindowAndInitGL(&mainWin);
-        if (didInit == false) {
-            std::cerr << "FAILED TO LOAD WIN AND GL\n";
-            return -10;
-        }
-
-        CreateEngine();
+    bool didInit = window.CreateNativeWindowOpenGL();
+    if (didInit == false) {
+        std::cerr << "FAILED TO LOAD WIN AND GL\n";
+        return false;
     }
-    catch(std::exception& e) {
-        std::cerr << e.what() << std::endl;
-    }
-    // int frames = 0;
+    return true;
+}
+
+
+void RunSingleLoop() {
+    // printf("Frame %d, Delta: %f \n", Time_GetFrameCountInt(), Time_GetDelta());
+    Time_Update();
+
+    mainWin.ProcessEvents();
+    EnginePtr->gui.UpdateInputs();
+
+    RenderLoop();
+    ControlsLoop();
+
+    Input_Update();
+}
+
+
+void MainLoop() {
     while (!mainWin.close)
     {
-        // printf("looping\n");
         try {
-            // printf("Frame %d, Delta: %f \n", Time_GetFrameCountInt(), Time_GetDelta());
-            Time_Update();
-            Win32WindowUpdate(mainWin);
-            RenderLoop();
-            ControlsLoop();
-            Input_Update();
+            RunSingleLoop();
         }
         catch (std::exception& e) {
             std::cerr << e.what() << std::endl;
         }
     }
+}
+
+
+
+int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE prevInstance, LPSTR lpCmdLine, int nShowCmd) {
+
+    bool didCreate = CreateMainWindow(mainWin, hInstance);
+    if (!didCreate) {
+        return -1;
+    }
+
+    CreateEngine();
+
+    MainLoop();
     std::cout<<"Main Loop terminated. SPIN\n";
-    // SpinWait();
     return 0;
 }
 

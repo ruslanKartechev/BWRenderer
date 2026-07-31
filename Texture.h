@@ -1,12 +1,15 @@
 #pragma once
-#include "MyTypes.h"
 #include <string>
+#include "MyTypes.h"
+#include "SplatMapData.h"
+#include "NoiseData.h"
+
 
 class Texture {
 public:
     static constexpr i32 TEX_FORMAT_sRGB32 = 0;
     static constexpr i32 TEX_FORMAT_R32 = 1;
-    static constexpr i32 TEX_FORMAT_SkyBox = 2;
+    static constexpr i32 TEX_FORMAT_CUBEMAP = 2;
 
     i32 width = 0;
     i32 height = 0;
@@ -47,9 +50,14 @@ public:
     void GenerateDefaultNormalTexture(i32 size = 4);
 
     void SetPixelFormat(i32 format);
+
     void SetSize(i32 width, i32 height);
+
     void SetChannelCount(i32 channelCount);
 
+    void SetHeightMapData(NoiseData& data);
+
+    void SetSplatMapData(SplatMapData& data);
 
 private:
     u8* pixelsBytePtr = nullptr;

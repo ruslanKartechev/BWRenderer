@@ -6,9 +6,8 @@
 #include "Engine.h"
 #include "Terrain.h"
 #include "cglm/cglm.h"
-
-#define DEBUG_FLAGS__
-
+#include "Mesh.h"
+// #define DEBUG_FLAGS__
 
 static RenderTarget renderTarget = {};
 static PostProcessStack ppStack = {};
@@ -640,34 +639,42 @@ void GL_UseMaterial(Material& material,
                     AssetManager& assets) {
 
     glUseProgram(shaderId);
+
     for (auto& floatPair: material.floats) {
         glUniform1f(floatPair.first, floatPair.second);
     }
+
 
     for (auto& vecPair: material.vectors) {
         vec4 vec = {vecPair.second.x, vecPair.second.y, vecPair.second.z, vecPair.second.w};
         glUniform4fv(vecPair.first, 1, (const float*) vec);
     }
 
+
     for (auto& texturePair: material.textures) {
+
         i32 binding = texturePair.first;
         MaterialTextureProp& texProp = texturePair.second;
         Texture& texture = assets.textures.GetItemRef(texProp.texHandle);
 
         if (assets.textures.IsNullItem(texture)) {
-            // std::cerr<<"Failed to load texture"<<std::endl;I
+            // std::cerr<<"Failed to load texture"<<std::endl;
             continue;
         }
+
         auto type = GL_TEXTURE_2D;
         switch (texture.pixelFormat) {
-            case 0:
+            case Texture::TEX_FORMAT_sRGB32:
                 type = GL_TEXTURE_2D;
                 break;
-            case 1:
+            case Texture::TEX_FORMAT_R32:
                 type = GL_TEXTURE_2D;
                 break;
-            case 2:
+            case Texture::TEX_FORMAT_CUBEMAP:
                 type = GL_TEXTURE_CUBE_MAP;
+                break;
+            default:
+                type = GL_TEXTURE_2D;
                 break;
         }
         auto texBindingLocation = GL_TEXTURE0 + binding;
@@ -1005,10 +1012,14 @@ void GL_TerrainPass(RenderTarget& renderTarget, GameScene& scene, Camera& camera
     Shader& shader = assets.shaders.GetItemRef(material.shaderHandle);
     auto shaderId = shader.GetShaderId();
 
-    // printf("[TERRAIN] material handle %d, shader %d, transformHandle: %d  \n",
-    //     terrain.hMaterial.index, shader.GetShaderId(), terrain.hTransform.index);
+    // printf("[TERRAIN] material handle %d, shader %d, transformHandle: %d  \n", terrain.hMaterial.index, shaderId, terrain.hTransform.index);
+
     glBindFramebuffer(GL_FRAMEBUFFER, renderTarget.mainFB);
-    glUseProgram(shaderId);
+    GL_UseMaterial(material, shaderId, assets);
+
+    vec4 size = {static_cast<f32>(terrain.cellsCountX+1), static_cast<f32>(terrain.cellsCountY+1), 1.0, 1.0};
+    shader.SetVec4("_SIZE", size);
+    shader.SetFloat("_HEIGHT_SCALE", terrain.height);
 
     glEnable(GL_DEPTH_TEST);
     glDepthFunc(GL_LEQUAL);
@@ -1017,7 +1028,6 @@ void GL_TerrainPass(RenderTarget& renderTarget, GameScene& scene, Camera& camera
     glEnable(GL_CULL_FACE);
     glCullFace(GL_FRONT);
     glDisable(GL_BLEND);
-
 
     i32 model_Location = glGetUniformLocation(shaderId, ID_UNIFORM_MODEL);
     i32 view_Location = glGetUniformLocation(shaderId, ID_UNIFORM_VIEW);
@@ -1028,7 +1038,6 @@ void GL_TerrainPass(RenderTarget& renderTarget, GameScene& scene, Camera& camera
 
     glBindVertexArray(terrain.vao);
     glDrawElements(GL_TRIANGLES, terrain.indexCount, GL_UNSIGNED_INT, nullptr);
-
 
     // Reset State
     glBindTexture(GL_TEXTURE_2D, 0);
@@ -1212,7 +1221,9 @@ void GL_RenderPostProcess(const RenderTarget& target,
 
 
 //region UI pass
-void GL_UIPass(RenderTarget& target, GameScene& scene, AssetManager& assets, Camera& camera) {
+
+
+void GL_UIPass(RenderTarget& target, GameScene& scene, AssetManager& assets, MyGui* gui) {
     constexpr i32 quadIndexCount = 6;
 
     imax count = scene.activeUIHandles.size();
@@ -1243,14 +1254,15 @@ void GL_UIPass(RenderTarget& target, GameScene& scene, AssetManager& assets, Cam
         GL_UseMaterial(material, shaderId, assets);
 
         vec4 positionSize = {uiObj.position[0], uiObj.position[1], uiObj.size[0], uiObj.size[1]};
-
         shader.SetVec4("u_PositionSize", positionSize);
         shader.SetVec2("u_ScreenResolution", screenSize);
 
         glBindVertexArray(uiObj.vao);
         glDrawElements(GL_TRIANGLES, quadIndexCount, GL_UNSIGNED_INT, nullptr);
-        // printf("shader id: %d, vao %d. PositionSize %f, %f, %f, %f \n", shaderId, obj.vao,
-        //     positionSize[0], positionSize[1], positionSize[2], positionSize[3]);
+    }
+
+    if (gui != nullptr) {
+        gui->RenderFrame();
     }
 
     GL_CleanState();
@@ -1259,6 +1271,9 @@ void GL_UIPass(RenderTarget& target, GameScene& scene, AssetManager& assets, Cam
     glDepthMask(GL_TRUE);
 }
 //endregion
+
+
+
 
 void GL_RenderScene(Engine& engine) {
 
@@ -1309,7 +1324,7 @@ void GL_RenderScene(Engine& engine) {
 
     GL_RenderPostProcess(renderTarget, ppStack, assets, camera, settings);
 
-    GL_UIPass(renderTarget, scene, assets, camera);
+    GL_UIPass(renderTarget, scene, assets, &engine.gui);
 
     // if (devDepths) {
     //     GL_RenderDepthOnly(renderTarget, assets.GetShader(assets.shaderDepthOnly), camera);

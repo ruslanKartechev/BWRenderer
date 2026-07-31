@@ -6,6 +6,7 @@
 #include "GameScene.h"
 #include "assimp/assimp/scene.h"
 #include "Shader.h"
+#include "Mesh.h"
 
 class AssetManager {
 public:

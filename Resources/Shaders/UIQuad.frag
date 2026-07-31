@@ -8,8 +8,6 @@ uniform float _GAMMA = 1.0;
 
 void main(){
     vec4 color = texture(mainTex, v_uv);
-//    color = pow(color, vec3(1.0 / _GAMMA));
-    float c = color.r;
-//    c = (c + 1.0) / 2.0;
-    FragColor = vec4(vec3(c), 1.0);
+    color = pow(color, vec4(1.0 / _GAMMA));
+    FragColor = color;
 }
