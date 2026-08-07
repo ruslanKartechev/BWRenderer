@@ -3,12 +3,9 @@
 #include "Engine.h"
 #include <iostream>
 
-double persistence = 0.5;
-
 #define maxPrimeIndex 10
-
-
-static int primeIndex = 3;
+static double persistence = 0.25;
+static int primeIndex = 1;
 
 static int primes[maxPrimeIndex][3] = {
     { 995615039, 600173719, 701464987 },
@@ -70,12 +67,13 @@ static f32 SmoothStep(f32 edge0, f32 edge1, f32 x) {
 
 
 
-bool NoiseGenerator::GenerateSplatMapForTerrain(SplatMapData& splat, NoiseData& terrainNoise)
+bool NoiseGenerator::GenerateSplatMapForTerrain(SplatMapData& splat, NoiseData& terrainNoise, f32 heightPower)
 {
     if (terrainNoise.dataPtr == nullptr) {
         std::cerr << "[NoiseGen] TerrainNoise.dataPtr is null!" << std::endl;
         return false;
     }
+    splat.Clear();
 
     i32 channels = splat.stride;
     if (channels == 0) {
@@ -86,60 +84,40 @@ bool NoiseGenerator::GenerateSplatMapForTerrain(SplatMapData& splat, NoiseData& 
     splat.sizeY = terrainNoise.sizeY;
     i32 totalSize = terrainNoise.arraySize * channels;
     i32 readArraySize = terrainNoise.arraySize;
-    f32 scale = terrainNoise.scale;
+    f32 hScale = terrainNoise.scale;
     splat.arraySize = totalSize;
     splat.dataPtr = new u8[totalSize];
 
-    constexpr f32 Pow = 3.0;
 
-    constexpr f32 s_sand = 0.3f;
-    constexpr f32 s_grass = 0.7f;
-    constexpr f32 s_rock = 0.9f;
-
-    f32 maxPossibleHeight = std::pow(1 * scale, Pow);
+    f32 maxPossibleHeight = std::pow(0.8 * hScale, heightPower);
 
     for (size_t i = 0; i < readArraySize; i++) {
         f32 hRaw = terrainNoise.dataPtr[i];
-        f32 hVis = std::pow(hRaw * scale, Pow);
-        f32 height01 = hVis / maxPossibleHeight;
+        f32 hVis = std::pow(hRaw * hScale, heightPower);
+        // relative height (0-1)
+        f32 rh = hVis / maxPossibleHeight;
 
         // Weights
         f32 wRock1 = 0.0f; // Deep
         f32 wSand  = 0.0f; // Low ground
         f32 wGrass = 0.0f; // Mid ground
         f32 wRock2 = 0.0f; // Peaks
-
-        if (height01 < 0.1f)
-        {
-            wRock1 = 1.0f;
+        if (rh < splat.band1) {
+            wRock1 = 1.0;
         }
-        else if (height01 < s_sand)
-        {
-            wSand = SmoothStep(s_sand * 0.9, s_sand, height01);
-            wRock1 = 1.0f - wSand;
+        else if (rh < splat.band2) {
+            wSand = 1.0;
         }
-        else if (height01 < s_grass)
-        {
-            wGrass = SmoothStep(s_grass * 0.9, s_grass, height01);
-            wSand = 1.0f - wGrass;
+        else if (rh < splat.band3) {
+            wGrass = 1.0;
         }
-        else if (height01 < s_grass + 0.1)
-        {
-            wGrass = 1.0f;
-        }
-        else if (height01 < s_rock)
-        {
-            wRock2 = SmoothStep(s_rock * 0.9f, s_rock, height01);
-            wGrass = 1.0f - wRock2;
-        }
-        else
-        {
-            wRock2 = 1.0f;
+        else if (rh < splat.band4) {
+            wRock2 = 1.0;
         }
 
-        /* B */ splat.dataPtr[i * channels + 2] = static_cast<u8>(wRock1 * 255.0f);
-        /* G */ splat.dataPtr[i * channels + 0] = static_cast<u8>(wSand * 255.0f);
-        /* B */ splat.dataPtr[i * channels + 1] = static_cast<u8>(wGrass * 255.0f);
+        /* R */ splat.dataPtr[i * channels + 0] = static_cast<u8>(wRock1 * 255.0f);
+        /* G */ splat.dataPtr[i * channels + 1] = static_cast<u8>(wSand * 255.0f);
+        /* B */ splat.dataPtr[i * channels + 2] = static_cast<u8>(wGrass * 255.0f);
         /* A */ splat.dataPtr[i * channels + 3] = static_cast<u8>(wRock2 * 255.0f);
     }
 
@@ -165,6 +143,10 @@ double NoiseGenerator::ValueNoise_2D(double x, double y, i32 octaves) {
 
 
 bool NoiseGenerator::GeneratePerlin(NoiseData& data) {
+
+    primeIndex = data.seed;
+    persistence = data.persistence;
+
     if (data.sizeY == 0 && data.sizeX == 0) {
         std::cerr << "[noise generator] size is 0" << std::endl;
         return false;
@@ -180,6 +162,7 @@ bool NoiseGenerator::GeneratePerlin(NoiseData& data) {
 
             double val = ValueNoise_2D(x, y, data.octaves);
             val = (val + 1.0) / 2.0;
+            // val = 0.0;
             data.dataPtr[arrIdx] = static_cast<f32>(val);
             arrIdx++;
         }

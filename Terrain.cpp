@@ -1,128 +1,117 @@
 #include "Terrain.h"
 #include <iostream>
 #include <cmath>
-#include <cstdlib>
 
-// #define LOG
 
-void Terrain::SetSize(i32 cellsX, i32 cellsY) {
-    cellsCountX = cellsX;
-    cellsCountY = cellsY;
 
+void Terrain::GenerateGridNoUV(ClipmapMesh& mesh, int verticesX, int verticesZ) {
+    assert(mesh.vertexDataPtr == nullptr);
+    assert(mesh.indexDataPtr == nullptr);
+
+    mesh.stride = 2;
+    mesh.vertexDataCount = verticesX * verticesZ * mesh.stride;
+    mesh.indexCount = (verticesX - 1) * (verticesZ - 1) * 6;
+
+    mesh.vertexDataPtr = new f32[mesh.vertexDataCount];
+    mesh.indexDataPtr = new i32[mesh.indexCount];
+
+    i32 vIdx = 0;
+    for (auto z = 0; z < verticesZ; z++) {
+        for (auto x = 0; x < verticesX; x++) {
+            mesh.vertexDataPtr[vIdx++] = (f32)x;
+            mesh.vertexDataPtr[vIdx++] = (f32)z;
+        }
+    }
+
+    i32 iIdx = 0;
+    for (auto z = 0; z < verticesZ - 1; z++) {
+        for (auto x = 0; x < verticesX - 1; x++) {
+            i32 topLeft = z * verticesX + x;
+            i32 topRight = topLeft + 1;
+            i32 bottomLeft = (z + 1) * verticesX + x;
+            i32 bottomRight = bottomLeft + 1;
+
+            mesh.indexDataPtr[iIdx++] = topLeft;
+            mesh.indexDataPtr[iIdx++] = bottomLeft;
+            mesh.indexDataPtr[iIdx++] = topRight;
+            mesh.indexDataPtr[iIdx++] = topRight;
+            mesh.indexDataPtr[iIdx++] = bottomLeft;
+            mesh.indexDataPtr[iIdx++] = bottomRight;
+        }
+    }
+}
+
+
+f32 Terrain::GetHeightAt(f32 localX, f32 localZ) {
+    if (heightData.dataPtr == nullptr) {
+        return 0.0f;
+    }
+    f32 u = localX;
+    f32 v = localZ;
+
+    while (u >= heightData.sizeX && heightData.sizeX != 0) {
+        u -= heightData.sizeX;
+    }
+    while (v >= heightData.sizeY && heightData.sizeY != 0) {
+        v -= heightData.sizeY;
+    }
+
+    i32 idx = static_cast<i32>(std::lround(u + v * heightData.sizeX) );
+    if (idx >= heightData.arraySize) {
+        std::cerr << "index " << idx << " out of bounce" << heightData.arraySize << std::endl;
+        return 0.0f;
+    }
+    f32 h = heightData.dataPtr[idx];
+    // printf("Position Local (%f, %f) -> (u,v) (%f, %f). h: %f\n", localX, localZ, u, v, h);
+    h = pow(h * heightData.scale, HeightPower) - pow(0.5 * heightData.scale, HeightPower);
+    return h;
+}
+
+
+void Terrain::GetVertexOriginPosition(vec3 worldPosition, vec3 outPosition)
+{
+    glm_vec3_copy(worldPosition, outPosition);
+    outPosition[0] -= (worldSize + 1.0) * 0.5f;
+    outPosition[2] -= (worldSize + 1.0) * 0.5f;
+}
+
+
+
+void Terrain::GenerateSingleGrid() {
+    i32 vertexCountX = worldSize + 1;
+    i32 vertexCountY = worldSize + 1;
+    GenerateGridNoUV(singleMesh, vertexCountX, vertexCountY);
 }
 
 
 void Terrain::GenerateMeshData() {
-    int vertexCountX = cellsCountX + 1;
-    int vertexCountY = cellsCountY + 1;
-    int totalVertices = vertexCountX * vertexCountY;
-    int totalCells = cellsCountX * cellsCountY;
-    float stepX = 1.0f;
-    float stepY = 1.0f;
-    int DATA_COUNT = (2 + 3) * totalVertices;
-    int TRIG_IND_COUNT = totalCells * 6;
 
-    float offsetX = -1.0 * vertexCountX * .5f * stepX;
-    float offsetY = -1.0 * vertexCountY * .5f * stepY;
+    constexpr i32 n = 255; // 14 units
+    constexpr i32 ring = n + 2; // 16 units For vertical strips
+    constexpr i32 shortRing = n; // 14 units For horizontal strips
 
-    this->vertexData = new float[DATA_COUNT];
-    this->indexData = new int[TRIG_IND_COUNT];
-    this->vertexDataCount = DATA_COUNT;
-    this->indexCount = TRIG_IND_COUNT;
+    constexpr i32 m = (n + 1) / 4; // 3 by 3 units
+    constexpr i32 gapWidth = (n-1) - 4*(m-1) + 1; // N - 4M units wide (+1 vertex)
+    constexpr i32 centerVertCount = ((n+1) / 2) + 1; // 8 units wide
+    constexpr i32 trimsVertCount = 2;
 
-    this->stride = 5;
-    this->startIndexVertex = 0;
-    this->startIndexUV = 3;
-    this->startIndexNormals = -1;
-    this->startIndexTangent = -1;
-    this->startIndexColor = -1;
+    LODS = 4;
+    R = (n - 1) / 2;
+    M = m - 1;
+    Gap = gapWidth - 1;
 
-    size_t vIdx = 0;
-    for (size_t y = 0; y < vertexCountY; y++) {
-        float v = (float)y / vertexCountY;
+    GenerateGridNoUV(centerMesh, centerVertCount, centerVertCount);
+    GenerateGridNoUV(blockMesh, m, m);
+    GenerateGridNoUV(fixUpXMesh, m, gapWidth);
+    GenerateGridNoUV(fixUpYMesh, gapWidth, m);
 
-        for (size_t x = 0; x < vertexCountX; x++) {
+    GenerateGridNoUV(trimXMesh, shortRing, trimsVertCount);
+    GenerateGridNoUV(trimYMesh, trimsVertCount, ring);
 
-            float coordX = x * stepX + offsetX;
-            float coordY = 0.0f;
-            float coordZ = y * stepY + offsetY;
-
-            float u = (float)x / vertexCountX;
-            vertexData[vIdx++] = coordX;
-            vertexData[vIdx++] = coordY;
-            vertexData[vIdx++] = coordZ;
-            vertexData[vIdx++] = u;
-            vertexData[vIdx++] = v;
-        }
-    }
-
-    size_t iIdx = 0;
-    for (size_t y = 0; y < cellsCountY; y++) {
-
-        for (size_t x = 0; x < cellsCountX; x++) {
-            int topLeft = y * vertexCountX + x;
-            int topRight = topLeft + 1;
-            int bottomLeft = (y + 1) * vertexCountX + x;
-            int bottomRight = bottomLeft + 1;
-
-            indexData[iIdx++] = topLeft;
-            indexData[iIdx++] = bottomLeft;
-            indexData[iIdx++] = topRight;
-
-            indexData[iIdx++] = topRight;
-            indexData[iIdx++] = bottomLeft;
-            indexData[iIdx++] = bottomRight;
-        }
-    }
     this->isBuilt = true;
-
-
-#ifdef LOG
-    size_t idx = 0;
-    std::cout << "------------------" << std::endl;
-    for (size_t i = 0; i < vertexDataCount; i += stride) {
-        std::cout << vertexData[idx++] << " ,  ";
-        std::cout << vertexData[idx++] << " ,  ";
-        std::cout << vertexData[idx++] << " ,  ";
-        std::cout << vertexData[idx++] << " ,  ";
-        std::cout << vertexData[idx++] << " ,  ";
-        std::cout << std::endl;
-    }
-
-
-    std::cout << "------------------" << std::endl;
-    idx = 0;
-    for (size_t i = 0; i < indexCount; i += 6) {
-        std::cout << indexData[idx++] << " ,  ";
-        std::cout << indexData[idx++] << " ,  ";
-        std::cout << indexData[idx++] << " ,  ";
-
-        std::cout << indexData[idx++] << " ,  ";
-        std::cout << indexData[idx++] << " ,  ";
-        std::cout << indexData[idx++] << " ,  ";
-
-        std::cout << std::endl;
-    }
-#endif
 }
 
 
 void Terrain::FreeData() {
-    if (vertexData != nullptr) {
-        delete[](vertexData);
-    }
 
-    if (indexData != nullptr) {
-        delete[](indexData);
-    }
-}
-
-float* Terrain::GetVertexDataPtr() {
-
-    return vertexData;
-}
-
-int* Terrain::GetIndexDataPtr() {
-
-    return indexData;
 }

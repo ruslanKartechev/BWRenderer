@@ -19,5 +19,6 @@ public:
     u32 arrayObject = {0};
     RenderSubMesh renderData = {};
     InstanceEntry& AddNewOne();
+    bool isDirty;
 
 };

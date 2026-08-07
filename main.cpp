@@ -1,4 +1,3 @@
-#include "SceneDefinition.h"
 #include <iostream>
 #include <vector>
 #include <filesystem>
@@ -24,6 +23,9 @@
 #include "ProgramWindow.h"
 #include "myGui.h"
 #include <windows.h>
+#include "Scripts/ScriptTerrainGame.h"
+#include "Scripts/ScriptCameraControls.h"
+
 
 #define LOG(str) do {printf("%s\n", str);} while(false);
 #define LOG2(str1, str2) do {printf("%s1 %s2\n", str1, str2); } while(false);
@@ -32,6 +34,21 @@
 #define STR_VEC2(vec) "[" << vec[0]<< ", " << vec[1] << "]";
 #define STR_VEC3(vec) "[" << vec[0]<< ", " << vec[1] << ", " << vec[2] << "]";
 #define STR_VEC4(vec) "[" << vec[0]<< ", " << vec[1] << ", " << vec[2] << ", " << vec[3] << "]";
+
+#define SCRIPT_ALLOCATE(engine, name) { \
+                                            name* obj = new name();  \
+                                            Script& script = engine.scripts.emplace_back();  \
+                                            script.objectPtr = (void*)obj;  \
+                                            script.Create = &MethodStartWrapper<name, &name::Create>;  \
+                                            script.Start = &MethodStartWrapper<name, &name::Start>;  \
+                                            script.Quit = &MethodStartWrapper<name, &name::Quit>;  \
+                                            script.GamePause = &MethodStartWrapper<name, &name::GamePause>;  \
+                                            script.GameResume = &MethodStartWrapper<name, &name::GameResume>;  \
+                                            script.Update = &MethodUpdateWrapper<name, &name::Update>;  \
+                                            script.GuiUpdate = &MethodUpdateWrapper<name, &name::GUIUpdate>;  \
+                                            }
+
+
 
 // region Static Data
 static ProgramWindow mainWin = {};
@@ -146,6 +163,7 @@ void LoadShadersDeferred(Engine& engine) {
 void LoadShaders(Engine& engine) {
 
     auto& assets = engine.assetManager;
+
     Shader& default3D = assets.shaders.GetNewObjectAndHandle(assets.shaderDefault3D);
     Shader& default2D = assets.shaders.GetNewObjectAndHandle(assets.shaderDefault2D);
     Shader& debugShader = assets.shaders.GetNewObjectAndHandle(assets.shaderLightDebug);
@@ -211,9 +229,6 @@ void LoadShaders(Engine& engine) {
     std::cout << "[shader] compiled " << bloomDown2.GetName() << " " << bloomDown2.GetShaderId() << std::endl;
     std::cout << "[shader] compiled " << bloomUp.GetName() << " " << bloomUp.GetShaderId() << std::endl;
 
-    //std::cout << "[shader] compiled " << bloomShader.GetName() << " " << bloomShader.GetShaderId() << std::endl;
-    //std::cout << "[shader] compiled " << blurShader.GetName() << " " << blurShader.GetShaderId() << std::endl;
-    //std::cout << "[shader] compiled " << colorShader.GetName() << " " << colorShader.GetShaderId() << std::endl;
 #endif
 
     assert(allCompiled);
@@ -323,7 +338,6 @@ void InitCamera() {
 
 
 // region Loops
-
 void StartFrame() {
     Camera& camera = EnginePtr->scene.camera;
     camera.UpdateAspectRationWidthHeight(static_cast<float>(mainWin.width), static_cast<float>(mainWin.height));
@@ -347,133 +361,10 @@ void UpdateSceneTransforms(GameScene& scene) {
     }
 }
 
-
-
 void RenderLoop() {
-    Engine& eng = *EnginePtr;
-
-    UpdateSceneTransforms(eng.scene);
-    StartFrame();
-    GL_RenderScene(eng);
-
-    EndFrame();
 }
 // endregion
 
-static float elapsedTimeMoving = 0.0f;
-
-void ControlCamera() {
-    float dt = (float)Time_GetDelta();
-    Transform& cameraTransform = EnginePtr->scene.transforms.GetItemRef(EnginePtr->scene.camera.transformHandle);
-    float moveSpeed = EnginePtr->settings.Camera_Move_Speed;
-    float rotSpeed  = EnginePtr->settings.Camera_Rotation_Speed;
-
-    vec3 localMove = {};
-    float verticalShift = 0;
-    if (Input_IsKeyHeld(GameInputKey::KEY_W)) {
-        localMove[2] = 1;
-    }
-    if (Input_IsKeyHeld(GameInputKey::KEY_A)) {
-        localMove[0] = -1;
-    }
-    if (Input_IsKeyHeld(GameInputKey::KEY_S)) {
-        localMove[2] = -1;
-    }
-    if (Input_IsKeyHeld(GameInputKey::KEY_D)) {
-        localMove[0] = 1;
-    }
-    if (Input_IsKeyHeld(GameInputKey::KEY_E)) {
-        verticalShift = 1;
-    }
-    if (Input_IsKeyHeld(GameInputKey::KEY_Q)) {
-        verticalShift = -1;
-    }
-    vec2 mousePosition;
-    Input_GetMousePosition(mousePosition);
-    bool isMoving = localMove[0] != 0 || localMove[1] != 0 || localMove[2] != 0;
-    if (isMoving) {
-        elapsedTimeMoving += Time_GetDelta();
-    }
-    else{
-        elapsedTimeMoving = 0.0;
-    }
-
-    if (Input_IsMouseButtonHeld(GameInputKey::MOUSE_BUTTON_RIGHT)) {
-        vec2 mouseDelta;
-        Input_GetMouseDelta(mouseDelta);
-        glm_vec2_scale(mouseDelta, dt * rotSpeed, mouseDelta);
-
-        vec3 eulersBefore;
-        vec3 eulersAfter;
-        Transform_QuatToEuler(cameraTransform.rotation, eulersBefore);
-
-        Transform_RotateWorldY(cameraTransform, mouseDelta[0]);
-        Transform_RotateLocalX(cameraTransform, -mouseDelta[1]);
-        Transform_QuatToEuler(cameraTransform.rotation, eulersAfter);
-    }
-
-    vec3 worldMove;
-    Transform_ToWorldVector(cameraTransform, localMove, worldMove);
-    glm_vec3_scale(worldMove, dt * moveSpeed * (1 + elapsedTimeMoving), worldMove);
-
-    vec3 verticalMove = {0,1,0};
-    glm_vec3_scale(verticalMove, dt * moveSpeed * verticalShift, verticalMove);
-    glm_vec3_add(worldMove, verticalMove, worldMove);
-    glm_vec3_add(cameraTransform.position, worldMove, cameraTransform.position);
-}
-
-void ControlSettings() {
-    ProjectSettings& settings = EnginePtr->settings;
-
-    if (Input_IsKeyDown(GameInputKey::KEY_1)) {
-        settings.UseGammaCorrection  = !settings.UseGammaCorrection;
-        std::cout << "[GammaCorrection]: " << settings.UseGammaCorrection << std::endl;
-    }
-    if (Input_IsKeyDown(GameInputKey::KEY_P)) {
-        settings.DevRenderDepths  = !settings.DevRenderDepths;
-        std::cout << "[Dev Depths Only]: " << settings.DevRenderDepths << std::endl;
-    }
-    if (Input_IsKeyDown(GameInputKey::KEY_N)) {
-        settings.DevRenderNormals  = !settings.DevRenderNormals;
-        std::cout << "[Dev Normals Only]: " << settings.DevRenderNormals << std::endl;
-    }
-
-    if (Input_IsKeyDown(GameInputKey::KEY_J)) {
-        settings.RenderSkyBox  = !settings.RenderSkyBox;
-        std::cout << "[Render Skybox]: " << settings.RenderSkyBox << std::endl;
-    }
-    if (Input_IsKeyDown(GameInputKey::KEY_K)) {
-        settings.RenderShadows  = !settings.RenderShadows;
-        std::cout << "[Render Shadows]: " << settings.RenderShadows << std::endl;
-    }
-    if (Input_IsKeyDown(GameInputKey::KEY_L)) {
-        settings.PostProcess  = !settings.PostProcess;
-        std::cout << "[Render PostProcess]: " << settings.PostProcess << std::endl;
-    }
-    if (Input_IsKeyDown(GameInputKey::KEY_B)) {
-        settings.PostProcess_Bloom  = !settings.PostProcess_Bloom;
-        std::cout << "[Render PostProcess_Bloom]: " << settings.PostProcess_Bloom << std::endl;
-    }
-    if (Input_IsKeyDown(GameInputKey::KEY_R)) {
-        settings.PostProcess_SSR  = !settings.PostProcess_SSR;
-        std::cout << "[Render PostProcess_SSR]: " << settings.PostProcess_SSR << std::endl;
-    }
-    if (Input_IsKeyDown(GameInputKey::KEY_O)) {
-        settings.PostProcess_DOF  = !settings.PostProcess_DOF;
-        std::cout << "[Render PostProcess_DOF]: " << settings.PostProcess_DOF << std::endl;
-    }
-    if (Input_IsKeyDown(GameInputKey::KEY_P)) {
-        settings.PostProcess_ToneMapping  = !settings.PostProcess_ToneMapping;
-        std::cout << "[Render PostProcess_DOF]: " << settings.PostProcess_ToneMapping << std::endl;
-    }
-}
-
-
-void ControlsLoop() {
-
-    ControlCamera();
-    ControlSettings();
-}
 
 
 // region WinProc callbacks and Inputs
@@ -482,7 +373,6 @@ int Win_CloseWindow() {
     PostQuitMessage(0);
     return 0;
 }
-
 
 int Win_Move(uint32_t newWidth, uint32_t newHeight) {
     mainWin.posX = newWidth;
@@ -506,6 +396,7 @@ int Win_Resize(uint32_t newWidth, uint32_t newHeight) {
     return 0;
 }
 // endregion
+
 
 
 void FetchProjectPath(std::string &exePath, std::string &resourcesPat) {
@@ -535,7 +426,7 @@ void InitDefaults() {
     LoadSkybox(engine.scene.skybox);
     InitCamera();
 
-    RunGameSceneInit();
+    // RunGameSceneInit();
     AddDebugGeometryForLights(engine.scene, engine.assetManager);
 }
 
@@ -554,18 +445,6 @@ void MakeConsole() {
         printf("Failed to allocate console");
     }
 }
-
-
-
-void CreateEngine() {
-    EnginePtr = Engine::GetInstance();
-    auto& engine = *EnginePtr;
-    InitDefaults();
-    engine.UpdateSettings();
-    engine.shaderWatcher.WatchSettingsFile();
-    engine.gui.InitForWindow(&mainWin);
-}
-
 
 
 bool CreateMainWindow(ProgramWindow& window, HINSTANCE hInstance) {
@@ -592,21 +471,70 @@ bool CreateMainWindow(ProgramWindow& window, HINSTANCE hInstance) {
 }
 
 
+void CreateEngine() {
+    EnginePtr = Engine::GetInstance();
+    auto& engine = *EnginePtr;
+    InitDefaults();
+    engine.UpdateSettings();
+    engine.shaderWatcher.WatchSettingsFile();
+    engine.gui.InitForWindow(&mainWin);
+}
+
+
+
+void AllocateScripts() {
+    auto& engine = *EnginePtr;
+        SCRIPT_ALLOCATE(engine, ScriptTerrainGame);
+        SCRIPT_ALLOCATE(engine, ScriptCameraControls);
+}
+
+
+
+void StartScripts() {
+    for (auto& script : EnginePtr->scripts) {
+        script.Create(script.objectPtr);
+    }
+
+    for (auto& script : EnginePtr->scripts) {
+        script.Start(script.objectPtr);
+    }
+}
+
+void ScriptsUpdate() {
+    f32 dt = Time_GetDelta();
+    for (auto& script : EnginePtr->scripts) {
+        script.Update(script.objectPtr, dt);
+    }
+    for (auto& script : EnginePtr->scripts) {
+        script.GuiUpdate(script.objectPtr, dt);
+    }
+}
+
+
+
 void RunSingleLoop() {
     // printf("Frame %d, Delta: %f \n", Time_GetFrameCountInt(), Time_GetDelta());
+    Engine& eng = *EnginePtr;
     Time_Update();
 
     mainWin.ProcessEvents();
-    EnginePtr->gui.UpdateInputs();
+    eng.gui.UpdateInputs();
 
-    RenderLoop();
-    ControlsLoop();
+    StartFrame();
 
+    UpdateSceneTransforms(eng.scene);
+    ScriptsUpdate();
+    GL_RenderScene(eng);
+
+    EndFrame();
     Input_Update();
 }
 
 
 void MainLoop() {
+    AllocateScripts();
+    StartScripts();
+
     while (!mainWin.close)
     {
         try {
@@ -626,11 +554,9 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE prevInstance, LPSTR lpCmdLine,
     if (!didCreate) {
         return -1;
     }
-
     CreateEngine();
-
     MainLoop();
-    std::cout<<"Main Loop terminated. SPIN\n";
+
     return 0;
 }
 

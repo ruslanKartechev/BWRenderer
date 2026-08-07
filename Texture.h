@@ -24,7 +24,9 @@ public:
     const char* name = "";
 
 
-    bool UploadToGL(bool freeResource = true);
+    bool UploadNewTextureToGL(bool freeResource = true);
+
+    bool ReuploadTextureToGL(bool freeResource = true);
 
     /// Saves pixel data ptr as its own pixel data
     /// If the texture already had a pixel array, if will be FREEd before reassignment!

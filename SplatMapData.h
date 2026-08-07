@@ -13,8 +13,20 @@ struct SplatMapData {
     /// How many 'channels' are used to denote different weights
     /// Defaults to 4
     i32 stride = 4;
+
+    /// Array of bytes containing weights
     u8* dataPtr;
+    /// Size of 'dataPtr' array
     imax arraySize;
+
     bool isGenerated;
+
+    void Clear() {
+        if (dataPtr != nullptr) {
+            delete[] dataPtr;
+            arraySize = 0;
+            isGenerated = false;
+        }
+    }
 };
 

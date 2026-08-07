@@ -19,7 +19,7 @@ add_subdirectory("imgui")
 
 include_directories("glad/include")
 include_directories("imgui")
-
+include_directories("Scripts")
 
 
 add_executable( RenderGL  WIN32  main.cpp
@@ -56,8 +56,7 @@ add_executable( RenderGL  WIN32  main.cpp
         Camera.h
         ShaderWatcher.h
         ShaderWatcher.cpp
-        SceneDefinition.cpp
-        SceneDefinition.h
+
         Engine.cpp
         Engine.h
         ProjectDefines.h
@@ -79,15 +78,17 @@ add_executable( RenderGL  WIN32  main.cpp
         myGui.h
         ProgramWindow.cpp
         ProgramWindow.h
+        Script.h
+
+        Scripts/ScriptTerrainGame.cpp
+        Scripts/ScriptTerrainGame.h
+        Scripts/ScriptCameraControls.cpp
+        Scripts/ScriptCameraControls.h
 )
 
 
+
 target_link_libraries(RenderGL glad opengl32 cglm stb_lib gdi32 winmm assimp imgui_lib)
-
-
-message(STATUS "POST BUILD 1...")
-message(STATUS "POST BUILD 2... ${TARGET_RUNTIME_DLLS}")
-message(STATUS "POST BUILD 3... ${TARGET_FILE_DIR}")
 
 if (WIN32)
     add_custom_command(

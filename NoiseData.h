@@ -5,10 +5,13 @@ struct NoiseData {
     i32 sizeX;
     i32 sizeY;
     i32 octaves = 8;
-    f32* dataPtr;
     f32 scale;
     i32 arraySize;
     bool isGenerated;
+    // array of actual noise values
+    f32* dataPtr;
+    i32 seed;
+    f32 persistence;
 
 
     bool FreeData() {

@@ -45,8 +45,33 @@ void Texture::SetSize(i32 width, i32 height) {
     this->height = height;
 }
 
+bool Texture::ReuploadTextureToGL(bool freeResource) {
 
-bool Texture::UploadToGL(bool freeResource) {
+    if (glHandle== 0) {
+        return UploadNewTextureToGL(freeResource);
+    }
+    glBindTexture(GL_TEXTURE_2D, glHandle);
+
+    switch (pixelFormat) {
+        case Texture::TEX_FORMAT_R32:
+            glPixelStorei(GL_UNPACK_ALIGNMENT, 4);
+            glTexSubImage2D(GL_TEXTURE_2D, 0, GL_R32F, width, height, 0, GL_RED, GL_FLOAT, pixelsFloatPtr);
+            break;
+        case Texture::TEX_FORMAT_sRGB32:
+            glPixelStorei(GL_UNPACK_ALIGNMENT, 4);
+            glTexSubImage2D(GL_TEXTURE_2D, 0, GL_RGBA, width, height, 0, GL_RGBA, GL_UNSIGNED_BYTE, pixelsBytePtr);
+            glGenerateMipmap(GL_TEXTURE_2D);
+            break;
+    }
+
+    if (freeResource) {
+        FreeData();
+    }
+    glBindTexture(GL_TEXTURE_2D, 0);
+}
+
+
+bool Texture::UploadNewTextureToGL(bool freeResource) {
 
     glGenTextures(1, &glHandle);
     glBindTexture(GL_TEXTURE_2D, glHandle);
@@ -85,7 +110,7 @@ void Texture::GenerateDefaultWhiteTexture(i32 dim) {
     width = dim;
     height = dim;
     isLoaded = true;
-    UploadToGL(false);
+    UploadNewTextureToGL(false);
 
     delete[] pixelsBytePtr;
     pixelsBytePtr = nullptr;
@@ -106,7 +131,7 @@ void Texture::GenerateDefaultNormalTexture(i32 dim) {
     height = dim;
 
     isLoaded = true;
-    UploadToGL(false);
+    UploadNewTextureToGL(false);
 
     delete[] pixelsBytePtr;
     pixelsBytePtr = nullptr;

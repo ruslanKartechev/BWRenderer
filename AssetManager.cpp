@@ -335,7 +335,7 @@ bool AssetManager::LoadTextureAtPath(Texture &texture, const char *relativePath,
     texture.SetBytePixelsPtr(ptr);
     texture.isLoaded = true;
     if (uploadToGPU) {
-        texture.UploadToGL(true);
+        texture.UploadNewTextureToGL(true);
     }
     return true;
 }

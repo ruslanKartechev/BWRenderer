@@ -2,12 +2,26 @@
 #include "MyTypes.h"
 #include "RenderObject.h"
 #include "Handle.h"
-#include "NoiseGenerator.h"
 #include "SplatMapData.h"
 #include "NoiseData.h"
 
+struct ClipmapMesh {
+    f32* vertexDataPtr = nullptr;
+    i32* indexDataPtr = nullptr;
+    GLuint vao = 0;
+    GLuint vbo = 0;
+    GLuint ebo = 0;
+    i32 vertexDataCount = 0;
+    i32 indexCount = 0;
+    i32 stride = 5;
+};
+
+
+
 class Terrain {
 public:
+    static constexpr f32 HeightPower = 3.0f;
+    static constexpr f32 SizeMiddle = 7.0f;
 
     MaterialHandle hMaterial = {};
     TransformHandle hTransform = {};
@@ -18,40 +32,42 @@ public:
     TextureHandle hNoiseTex;
     TextureHandle hSplatMapTex;
 
-    GLuint vao;
-    GLuint vbo;
-    GLuint ebo;
 
-    f32 width;
-    f32 height;
+    ClipmapMesh singleMesh = {}; // not used
 
-    i32 vertexDataCount;
-    i32 indexCount;
-    i32 stride;
-    i32 startIndexVertex = -1;
-    i32 startIndexUV = -1;
-    i32 startIndexColor = -1;
-    i32 startIndexNormals = -1;
-    i32 startIndexTangent = -1;
-    i32 cellsCountX;
-    i32 cellsCountY;
+    ClipmapMesh centerMesh = {};
+    ClipmapMesh blockMesh = {};
+    ClipmapMesh fixUpXMesh = {};
+    ClipmapMesh fixUpYMesh = {};
+    ClipmapMesh trimXMesh = {};
+    ClipmapMesh trimYMesh = {};
+
+    f32 worldSize = 256.0f;
+
+    i32 LODS = 5;
+    // Innermost radius in world units
+    f32 R = 7.0f;
+    // Chunk block size in units
+    f32 M = 3.0f;
+    // Fix-up block width in units
+    f32 Gap = 2.0f;
+
+    i32 textOffsetX = 0;
+    i32 textOffsetZ = 0;
 
     bool isBuilt;
-
-    void SetSize(i32 cellsX, i32 cellsY);
+    bool debugSnapping;
 
     void GenerateMeshData();
-
     void FreeData();
-
-    float* GetVertexDataPtr();
-
-    int* GetIndexDataPtr();
+    f32 GetHeightAt(f32 x, f32 z);
+    void GetVertexOriginPosition(vec3 worldPosition, vec3 outPosition);
 
 
 private:
-    f32* vertexData = nullptr;
-    i32* indexData = nullptr;
+
+    static void GenerateGridNoUV(ClipmapMesh& mesh, int verticesX, int verticesZ);
+    void GenerateSingleGrid();
 
 };
 

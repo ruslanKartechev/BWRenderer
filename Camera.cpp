@@ -6,8 +6,8 @@
 
 Camera::Camera() {
     fieldOfView = 60.0f;
-    farPlane = 500.0f;
-    nearPlane = 0.1f;
+    farPlane = 1024.0f;
+    nearPlane = 0.2f;
     aspectRatio = 1.0f;
 }
 

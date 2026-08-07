@@ -7,7 +7,8 @@
 #include "Terrain.h"
 #include "cglm/cglm.h"
 #include "Mesh.h"
-// #define DEBUG_FLAGS__
+#define DRAW_DEBUG_TERRAIN_COLORS
+
 
 static RenderTarget renderTarget = {};
 static PostProcessStack ppStack = {};
@@ -62,7 +63,7 @@ void GL_RenderPostProcessBufferToScreen(const PostProcessStack& stack,
     Shader& screenShader = assets.GetShader(assets.shaderScreenRenderTexture);
     glUseProgram(screenShader.GetShaderId());
 
-    float gammaValue = settings.UseGammaCorrection ? settings.GammaValue : 1.0;
+    f32 gammaValue = settings.UseGammaCorrection ? settings.GammaValue : 1.0;
     screenShader.SetFloat("_GAMMA", gammaValue);
     // std::cout << "Gamme value " << gammaValue << "  settings.UseGammaCorrection" << settings.UseGammaCorrection << std::endl;
 
@@ -79,7 +80,7 @@ void GL_RenderPostProcessBufferToScreen(const PostProcessStack& stack,
 // region Materials
 void GL_InitMaterialParametersDefault3D(Material& material) {
     material.shaderName = Shader_DefaultDeferredG;
-    const float shade = 0.96f;
+    const f32 shade = 0.96f;
     material.SetVectorDefinition(ID_COLOR_TINT, {shade, shade, shade, 1.0});
 
     material.SetFloatDefinition(ID_SMOOTHNESS, .25f);
@@ -296,7 +297,7 @@ void GL_BuildPostProcessStack(PostProcessStack& stack,
     // Bloom
 
     // Bloom effect FBOs
-    constexpr int MIP_LEVELS = 5;
+    constexpr i32 MIP_LEVELS = 5;
     stack.bloomMipmaps.reserve(MIP_LEVELS + 1);
 
     for (i32 i = 0; i < MIP_LEVELS; i++) {
@@ -329,7 +330,7 @@ void GL_BuildPostProcessStack(PostProcessStack& stack,
 void GL_BuildRenderTarget(RenderTarget& target,
                           i32 width,
                           i32 height) {
-    float quadVertices[] = {
+    f32 quadVertices[] = {
         // positions    // uvs
         -1.0f, +1.0f,   0.0f, 1.0f,
         -1.0f, -1.0f,   0.0f, 0.0f,
@@ -350,10 +351,10 @@ void GL_BuildRenderTarget(RenderTarget& target,
 
     // Vertices
     glEnableVertexAttribArray(0);
-    glVertexAttribPointer(0, 2, GL_FLOAT, GL_FALSE, 4 * sizeof(float), (const void*) (0 * sizeof(float)));
+    glVertexAttribPointer(0, 2, GL_FLOAT, GL_FALSE, 4 * sizeof(f32), (const void*) (0 * sizeof(f32)));
     // UVs
     glEnableVertexAttribArray(1);
-    glVertexAttribPointer(1, 2, GL_FLOAT, GL_FALSE, 4 * sizeof(float), (const void*) (2 * sizeof(float)));
+    glVertexAttribPointer(1, 2, GL_FLOAT, GL_FALSE, 4 * sizeof(f32), (const void*) (2 * sizeof(f32)));
     // Create framebuffer
     glGenFramebuffers(1, &target.mainFB);
     glBindFramebuffer(GL_FRAMEBUFFER, target.mainFB);
@@ -410,7 +411,7 @@ void GL_InitGraphics(i32 width,
 
 // region Graphics Allocation
 void GL_AllocateGraphicsSkybox(RenderSubMesh& obj) {
-    float skyboxVertices[] = {
+    f32 skyboxVertices[] = {
         -1.0f, 1.0f, -1.0f,
         -1.0f, -1.0f, -1.0f,
         1.0f, -1.0f, -1.0f,
@@ -454,7 +455,7 @@ void GL_AllocateGraphicsSkybox(RenderSubMesh& obj) {
     glBindBuffer(GL_ARRAY_BUFFER, obj.vbo);
     glBufferData(GL_ARRAY_BUFFER, sizeof(skyboxVertices), &skyboxVertices, GL_STATIC_DRAW);
     glEnableVertexAttribArray(0);
-    glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 3 * sizeof(float), (void*) 0);
+    glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 3 * sizeof(f32), (void*) 0);
     glBindVertexArray(0);
 }
 
@@ -472,33 +473,33 @@ void GL_AllocateGraphicsMesh(RenderSubMesh& meshRenderData,
     glGenBuffers(1, &ebo);
     glBindVertexArray(vao);
     glBindBuffer(GL_ARRAY_BUFFER, vbo);
-    glBufferData(GL_ARRAY_BUFFER, sizeof(float) * mesh.vertexDataCount, mesh.vertexData, GL_DYNAMIC_DRAW);
+    glBufferData(GL_ARRAY_BUFFER, sizeof(f32) * mesh.vertexDataCount, mesh.vertexData, GL_DYNAMIC_DRAW);
     glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, ebo);
-    glBufferData(GL_ELEMENT_ARRAY_BUFFER, sizeof(int) * mesh.indexCount, mesh.indexData, GL_DYNAMIC_DRAW);
+    glBufferData(GL_ELEMENT_ARRAY_BUFFER, sizeof(i32) * mesh.indexCount, mesh.indexData, GL_DYNAMIC_DRAW);
 
-    int strideBytes = mesh.stride * sizeof(float);
-    int attributeIdx = 0;
-    glVertexAttribPointer(attributeIdx, 3, GL_FLOAT, GL_FALSE, strideBytes, (const void*)(mesh.startIndexVertex * sizeof(float) )); // XYZ
+    i32 strideBytes = mesh.stride * sizeof(f32);
+    i32 attributeIdx = 0;
+    glVertexAttribPointer(attributeIdx, 3, GL_FLOAT, GL_FALSE, strideBytes, (const void*)(mesh.startIndexVertex * sizeof(f32) )); // XYZ
     glEnableVertexAttribArray(attributeIdx);
     attributeIdx++;
     if (mesh.startIndexUV >= 0) {
-        glVertexAttribPointer(attributeIdx, 2, GL_FLOAT, GL_FALSE, strideBytes, (const void*) (mesh.startIndexUV * sizeof(float) )); // UV
+        glVertexAttribPointer(attributeIdx, 2, GL_FLOAT, GL_FALSE, strideBytes, (const void*) (mesh.startIndexUV * sizeof(f32) )); // UV
         glEnableVertexAttribArray(attributeIdx);
         attributeIdx++;
     }
     if (mesh.startIndexNormals >= 0) {
-        glVertexAttribPointer(attributeIdx, 3, GL_FLOAT, GL_FALSE, strideBytes, (const void*) (mesh.startIndexNormals * sizeof(float))); // XYZ normals
+        glVertexAttribPointer(attributeIdx, 3, GL_FLOAT, GL_FALSE, strideBytes, (const void*) (mesh.startIndexNormals * sizeof(f32))); // XYZ normals
         glEnableVertexAttribArray(attributeIdx);
         attributeIdx++;
     }
     if (mesh.startIndexColor >= 0) {
-        glVertexAttribPointer(attributeIdx, 4, GL_FLOAT, GL_FALSE, strideBytes, (const void*) (mesh.startIndexColor * sizeof(float))); // RGBA
+        glVertexAttribPointer(attributeIdx, 4, GL_FLOAT, GL_FALSE, strideBytes, (const void*) (mesh.startIndexColor * sizeof(f32))); // RGBA
         glEnableVertexAttribArray(attributeIdx);
         attributeIdx++;
     }
     if (mesh.startIndexTangent >= 0) {
         // Tangents
-        glVertexAttribPointer(attributeIdx, 3, GL_FLOAT, GL_FALSE, strideBytes, (const void*) (mesh.startIndexColor * sizeof(float))); // RGBA
+        glVertexAttribPointer(attributeIdx, 3, GL_FLOAT, GL_FALSE, strideBytes, (const void*) (mesh.startIndexColor * sizeof(f32))); // RGBA
         glEnableVertexAttribArray(attributeIdx);
         attributeIdx++;
     }
@@ -512,27 +513,27 @@ void GL_AllocateGraphicsMesh(RenderSubMesh& meshRenderData,
 
 
 void GL_AllocateGUIQuad(UIObject& obj) {
-    int stride = 4;
-    int startIndexVertex = 0;
-    int startIndexUV = 2;
+    i32 stride = 4;
+    i32 startIndexVertex = 0;
+    i32 startIndexUV = 2;
 
-    int vertexDataCount = 4 * stride;
-    int indexCount = 6;
-    float* vertexData = new float[] {
+    i32 vertexDataCount = 4 * stride;
+    i32 indexCount = 6;
+    f32* vertexData = new f32[] {
         // POSITION    // UV
         0.0f,  0.0f,   0.0f, 0.0f, // 0
         1.0f,  0.0f,   1.0f, 0.0f, // 1
         1.0f,  1.0f,   1.0f, 1.0f, // 2
         0.0f,  1.0f,   0.0f, 1.0f, // 3
     };
-    int* indexData = new int[] {
+    i32* indexData = new i32[] {
         0, 1, 2, 0, 2, 3
     };
 
     GLuint vao;
     GLuint vbo;
     GLuint ebo;
-    int strideBytes = stride * sizeof(float);
+    i32 strideBytes = stride * sizeof(f32);
 
     glGenVertexArrays(1, &vao);
     glGenBuffers(1, &vbo);
@@ -540,15 +541,15 @@ void GL_AllocateGUIQuad(UIObject& obj) {
     glBindVertexArray(vao);
     // Positions
     glBindBuffer(GL_ARRAY_BUFFER, vbo);
-    glBufferData(GL_ARRAY_BUFFER, sizeof(float) * vertexDataCount, vertexData, GL_DYNAMIC_DRAW);
+    glBufferData(GL_ARRAY_BUFFER, sizeof(f32) * vertexDataCount, vertexData, GL_DYNAMIC_DRAW);
     // Triangles
     glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, ebo);
-    glBufferData(GL_ELEMENT_ARRAY_BUFFER, sizeof(int) * indexCount, indexData, GL_DYNAMIC_DRAW);
+    glBufferData(GL_ELEMENT_ARRAY_BUFFER, sizeof(i32) * indexCount, indexData, GL_DYNAMIC_DRAW);
 
-    glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, strideBytes, (const void*)(startIndexVertex * sizeof(float) )); // XYZ
+    glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, strideBytes, (const void*)(startIndexVertex * sizeof(f32) )); // XYZ
     glEnableVertexAttribArray(0);
 
-    glVertexAttribPointer(1, 2, GL_FLOAT, GL_FALSE, strideBytes, (const void*) (startIndexUV * sizeof(float) )); // UV
+    glVertexAttribPointer(1, 2, GL_FLOAT, GL_FALSE, strideBytes, (const void*) (startIndexUV * sizeof(f32) )); // UV
     glEnableVertexAttribArray(1);
 
     obj.vao = vao;
@@ -557,8 +558,7 @@ void GL_AllocateGUIQuad(UIObject& obj) {
 }
 
 
-void GL_AllocateGraphicsTerrain(Terrain& terrain) {
-
+void GL_AllocateClipmapMesh(ClipmapMesh& mesh, bool addUvs = false) {
     GLuint vao;
     GLuint vbo;
     GLuint ebo;
@@ -568,43 +568,36 @@ void GL_AllocateGraphicsTerrain(Terrain& terrain) {
     glGenBuffers(1, &ebo);
     glBindVertexArray(vao);
     glBindBuffer(GL_ARRAY_BUFFER, vbo);
-    glBufferData(GL_ARRAY_BUFFER, sizeof(float) * terrain.vertexDataCount, terrain.GetVertexDataPtr(), GL_DYNAMIC_DRAW);
+    glBufferData(GL_ARRAY_BUFFER, sizeof(f32) * mesh.vertexDataCount, mesh.vertexDataPtr, GL_DYNAMIC_DRAW);
     glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, ebo);
-    glBufferData(GL_ELEMENT_ARRAY_BUFFER, sizeof(int) * terrain.indexCount, terrain.GetIndexDataPtr(), GL_DYNAMIC_DRAW);
+    glBufferData(GL_ELEMENT_ARRAY_BUFFER, sizeof(i32) * mesh.indexCount, mesh.indexDataPtr, GL_DYNAMIC_DRAW);
 
-    int stride = terrain.stride * sizeof(float);
-    int attributeIdx = 0;
+    i32 stride = mesh.stride * sizeof(f32);
 
     // Vertex Positions
-    glVertexAttribPointer(attributeIdx, 3, GL_FLOAT, GL_FALSE, stride, (const void*)(terrain.startIndexVertex * sizeof(float) )); // XYZ
-    glEnableVertexAttribArray(attributeIdx);
-    attributeIdx++;
-    // Vertex UVs
-    if (terrain.startIndexUV >= 0) {
-        glVertexAttribPointer(attributeIdx, 2, GL_FLOAT, GL_FALSE, stride, (const void*)(terrain.startIndexUV * sizeof(float))); // UV
-        glEnableVertexAttribArray(attributeIdx);
-        attributeIdx++;
-    }
-    if (terrain.startIndexNormals >= 0) {
-        glVertexAttribPointer(attributeIdx, 3, GL_FLOAT, GL_FALSE, stride, (const void*)(terrain.startIndexNormals * sizeof(float))); // XYZ normals
-        glEnableVertexAttribArray(attributeIdx);
-        attributeIdx++;
-    }
-    if (terrain.startIndexColor >= 0) {
-        glVertexAttribPointer(attributeIdx, 4, GL_FLOAT, GL_FALSE, stride, (const void*)(terrain.startIndexColor * sizeof(float))); // RGBA
-        glEnableVertexAttribArray(attributeIdx);
-        attributeIdx++;
-    }
-    if (terrain.startIndexTangent >= 0) {
-        glVertexAttribPointer(attributeIdx, 3, GL_FLOAT, GL_FALSE, stride, (const void*)(terrain.startIndexColor * sizeof(float))); // RGBA
-        glEnableVertexAttribArray(attributeIdx);
-        attributeIdx++;
+    glVertexAttribPointer(0, 2, GL_FLOAT, GL_FALSE, stride, (const void*)(0 * sizeof(f32) )); // XYZ
+    glEnableVertexAttribArray(0);
+    if (addUvs) {
+        // Vertex UVs
+        glVertexAttribPointer(1, 2, GL_FLOAT, GL_FALSE, stride, (const void*)(3 * sizeof(f32))); // UV
+        glEnableVertexAttribArray(1);
     }
 
     glBindVertexArray(0);
-    terrain.vao = vao;
-    terrain.vbo = vbo;
-    terrain.ebo = ebo;
+    mesh.vao = vao;
+    mesh.vbo = vbo;
+    mesh.ebo = ebo;
+
+}
+
+void GL_AllocateGraphicsTerrain(Terrain& terrain) {
+    GL_AllocateClipmapMesh(terrain.centerMesh);
+    GL_AllocateClipmapMesh(terrain.blockMesh);
+    GL_AllocateClipmapMesh(terrain.fixUpXMesh);
+    GL_AllocateClipmapMesh(terrain.fixUpYMesh);
+    GL_AllocateClipmapMesh(terrain.trimXMesh);
+    GL_AllocateClipmapMesh(terrain.trimYMesh);
+
 }
 
 
@@ -647,7 +640,7 @@ void GL_UseMaterial(Material& material,
 
     for (auto& vecPair: material.vectors) {
         vec4 vec = {vecPair.second.x, vecPair.second.y, vecPair.second.z, vecPair.second.w};
-        glUniform4fv(vecPair.first, 1, (const float*) vec);
+        glUniform4fv(vecPair.first, 1, (const f32*) vec);
     }
 
 
@@ -733,9 +726,9 @@ void GL_OpaquePass(GameScene& scene,
             i32 model_Location = glGetUniformLocation(shaderId, ID_UNIFORM_MODEL);
             i32 view_Location = glGetUniformLocation(shaderId, ID_UNIFORM_VIEW);
             i32 proj_Location = glGetUniformLocation(shaderId, ID_UNIFORM_PROJECTION);
-            glUniformMatrix4fv(model_Location, 1, GL_FALSE, (float*) transform.modelMatrix);
-            glUniformMatrix4fv(view_Location, 1, GL_FALSE, (float*) camera.viewMatrix);
-            glUniformMatrix4fv(proj_Location, 1, GL_FALSE, (float*) camera.projectionMatrix);
+            glUniformMatrix4fv(model_Location, 1, GL_FALSE, (f32*) transform.modelMatrix);
+            glUniformMatrix4fv(view_Location, 1, GL_FALSE, (f32*) camera.viewMatrix);
+            glUniformMatrix4fv(proj_Location, 1, GL_FALSE, (f32*) camera.projectionMatrix);
 
             glBindVertexArray(renderData.vao);
             glDrawElements(GL_TRIANGLES, mesh.indexCount, GL_UNSIGNED_INT, nullptr);
@@ -785,15 +778,15 @@ void GL_SkyboxPass(GameScene& scene,
         }
     }
 
-    glUniformMatrix4fv(glGetUniformLocation(shaderId, ID_UNIFORM_VIEW), 1, GL_FALSE, (float*) viewNoTranslation);
-    glUniformMatrix4fv(glGetUniformLocation(shaderId, ID_UNIFORM_PROJECTION), 1, GL_FALSE, (float*) camera.projectionMatrix);
+    glUniformMatrix4fv(glGetUniformLocation(shaderId, ID_UNIFORM_VIEW), 1, GL_FALSE, (f32*) viewNoTranslation);
+    glUniformMatrix4fv(glGetUniformLocation(shaderId, ID_UNIFORM_PROJECTION), 1, GL_FALSE, (f32*) camera.projectionMatrix);
 
     for (auto& floatPair: skyboxMaterial.floats) {
         glUniform1f(floatPair.first, floatPair.second);
     }
     for (auto& vecPair: skyboxMaterial.vectors) {
         vec4 vec = {vecPair.second.x, vecPair.second.y, vecPair.second.z, vecPair.second.w};
-        glUniform4fv(vecPair.first, 1, (const float*) vec);
+        glUniform4fv(vecPair.first, 1, (const f32*) vec);
     }
 
     glBindVertexArray(skybox.renderData.vao);
@@ -979,13 +972,23 @@ void GL_InstancedPass(RenderTarget& target, AssetManager& assets,
         auto shaderId = shader.GetShaderId();
         GL_UseMaterial(material, shaderId, assets);
 
+        if (buffer.isDirty) {
+            buffer.isDirty = false;
+            std::cout << "LITTLE DIRTY BUFFER " << std::endl;
+            GLsizeiptr dataSize = sizeof(mat4) * buffer.entries.size();
+            glBindBuffer(GL_ARRAY_BUFFER, buffer.arrayObject);
+            glBufferSubData(GL_ARRAY_BUFFER, 0, dataSize, buffer.entries.data());
+            glBindBuffer(GL_ARRAY_BUFFER, 0);
+
+        }
+
         glBindVertexArray(buffer.renderData.vao);
         // printf("Rendering shader id (%d)  view_Location (%d), proj_Location (%d)\n", shaderId, view_Location, proj_Location);
 
         i32 view_Location = glGetUniformLocation(shaderId, ID_UNIFORM_VIEW);
         i32 proj_Location = glGetUniformLocation(shaderId, ID_UNIFORM_PROJECTION);
-        glUniformMatrix4fv(view_Location, 1, GL_FALSE, (float*) camera.viewMatrix);
-        glUniformMatrix4fv(proj_Location, 1, GL_FALSE, (float*) camera.projectionMatrix);
+        glUniformMatrix4fv(view_Location, 1, GL_FALSE, (f32*) camera.viewMatrix);
+        glUniformMatrix4fv(proj_Location, 1, GL_FALSE, (f32*) camera.projectionMatrix);
 
         glDrawElementsInstanced(GL_TRIANGLES, mesh.indexCount, GL_UNSIGNED_INT, 0, buffer.entries.size());
         glBindVertexArray(0);
@@ -995,17 +998,18 @@ void GL_InstancedPass(RenderTarget& target, AssetManager& assets,
 // endregion
 
 
-
 //region Terrain render
 void GL_TerrainPass(RenderTarget& renderTarget, GameScene& scene, Camera& camera, AssetManager& assets) {
 
     if (scene.terrain.isBuilt == false) {
+        std::cerr << "no terrain built" << std::endl;
         return;
     }
     Terrain& terrain = scene.terrain;
     Material& material = assets.materials.GetItemRef(terrain.hMaterial);
 
     if (assets.materials.IsNullItem(material)) {
+        std::cerr << "No terrain material" << std::endl;
         return;
     }
     Transform& transform = scene.transforms.GetItemRef(terrain.hTransform);
@@ -1013,13 +1017,18 @@ void GL_TerrainPass(RenderTarget& renderTarget, GameScene& scene, Camera& camera
     auto shaderId = shader.GetShaderId();
 
     // printf("[TERRAIN] material handle %d, shader %d, transformHandle: %d  \n", terrain.hMaterial.index, shaderId, terrain.hTransform.index);
-
     glBindFramebuffer(GL_FRAMEBUFFER, renderTarget.mainFB);
-    GL_UseMaterial(material, shaderId, assets);
 
-    vec4 size = {static_cast<f32>(terrain.cellsCountX+1), static_cast<f32>(terrain.cellsCountY+1), 1.0, 1.0};
-    shader.SetVec4("_SIZE", size);
-    shader.SetFloat("_HEIGHT_SCALE", terrain.height);
+    GL_UseMaterial(material, shaderId, assets);
+    f32 worldSize = terrain.worldSize;
+    vec4 sizeScaleVec = {
+        (worldSize ),
+        (worldSize ),
+        terrain.heightData.scale,
+        1.0
+    };
+    shader.SetVec4("_SIZE", sizeScaleVec);
+    // printf("Terrain Scale: %f, scale: %f , LODs: %d  \n\n", worldSize, terrain.heightData.scale, terrain.LODS);
 
     glEnable(GL_DEPTH_TEST);
     glDepthFunc(GL_LEQUAL);
@@ -1032,12 +1041,201 @@ void GL_TerrainPass(RenderTarget& renderTarget, GameScene& scene, Camera& camera
     i32 model_Location = glGetUniformLocation(shaderId, ID_UNIFORM_MODEL);
     i32 view_Location = glGetUniformLocation(shaderId, ID_UNIFORM_VIEW);
     i32 proj_Location = glGetUniformLocation(shaderId, ID_UNIFORM_PROJECTION);
-    glUniformMatrix4fv(model_Location, 1, GL_FALSE, (float*) transform.modelMatrix);
-    glUniformMatrix4fv(view_Location, 1, GL_FALSE, (float*) camera.viewMatrix);
-    glUniformMatrix4fv(proj_Location, 1, GL_FALSE, (float*) camera.projectionMatrix);
+    i32 color_Location = glGetUniformLocation(shaderId, ID_COLOR_TINT);
+    i32 scaleLoc = glGetUniformLocation(shaderId, "_LOD_SCALE");
+    i32 camPosLoc = glGetUniformLocation(shaderId, "_CAMERA_POSITION");
 
-    glBindVertexArray(terrain.vao);
-    glDrawElements(GL_TRIANGLES, terrain.indexCount, GL_UNSIGNED_INT, nullptr);
+    f32 terrainY = transform.position[1];
+    Transform& camTransform = scene.transforms.GetItemRef(camera.transformHandle);
+    f32 camx = camTransform.position[0];
+    f32 camy = camTransform.position[1];
+    f32 camz = camTransform.position[2];
+
+    if (terrain.debugSnapping) {
+        camx = terrain.textOffsetX;
+        camz = terrain.textOffsetZ;
+    }
+
+    // terrainY = 0.0f;
+    vec2 viewPosXZ = {0, 0};
+
+    auto DrawMesh = [&](ClipmapMesh& mesh, f32 ox, f32 oz, f32 scale
+#ifdef DRAW_DEBUG_TERRAIN_COLORS
+        , vec4 color
+#endif
+        )
+    {
+        mat4 matModel;
+        glm_mat4_identity(matModel);
+        glm_translate(matModel, vec3{ox, terrainY, oz});
+        glm_scale(matModel, vec3{scale, 1.0f, scale});
+        glUniformMatrix4fv(model_Location, 1, GL_FALSE, (f32*)matModel);
+        glUniformMatrix4fv(view_Location, 1, GL_FALSE, (f32*)camera.viewMatrix);
+        glUniformMatrix4fv(proj_Location, 1, GL_FALSE, (f32*)camera.projectionMatrix);
+        glUniform1f(scaleLoc, scale);
+        glUniform2fv(camPosLoc, 1, (const f32*)viewPosXZ);
+#ifdef DRAW_DEBUG_TERRAIN_COLORS
+        glUniform4fv(color_Location, 1, (const f32*)color);
+#endif
+        glBindVertexArray(mesh.vao);
+        glDrawElements(GL_TRIANGLES, mesh.indexCount, GL_UNSIGNED_INT, nullptr);
+    };
+
+
+#ifdef DRAW_DEBUG_TERRAIN_COLORS
+    vec4 color1 = {0.65, 0.52, 0.78255, 1.0};
+    vec4 color2 = {0.65, 1.0, 0.85, 1.0};
+    vec4 color3 = {0.0, 1.0, 1.0, 1.0};
+    vec4 color4 = {0.25f, 0.25f, 0.25f, 1.0};
+    vec4 color5 = {0.5, 0.5, 1.0, 1.0};
+#endif
+
+    f32 R = terrain.R;
+    f32 M = terrain.M;
+    f32 Gap = terrain.Gap;
+    i32 LODS = terrain.LODS;
+
+    // Central chunk
+    {
+        viewPosXZ[0] = static_cast<f32>( static_cast<i32>(camx) );
+        viewPosXZ[1] = static_cast<f32>( static_cast<i32>(camz) );
+        f32 offset = std::floor(-R * 0.5f);
+        f32 x = viewPosXZ[0] + offset;
+        f32 z = viewPosXZ[1] + offset;
+        DrawMesh(terrain.centerMesh, x, z, 1.0f, color1);
+    }
+
+    // i32 frameCount = Engine::GetInstance()->frameCount;
+    // Rings around center starting from scale = 1
+    for (i32 i = 0; i < LODS; i++) {
+
+        i32 x0, x1, x2, x3, xgap = 0.0;
+        i32 z0, z1, z2, z3, zgap = 0.0;
+
+        // Coordinates for vertical trims
+        i32 vXLeft, vXRight, vY = 0;
+        // Coordinates for horizontal trims
+        i32 hZLow, hZHigh, hX = 0;
+
+        i32 scale = static_cast<i32>(1 << i);
+        i32 stepsX = (i32)(camx / scale);
+        i32 stepsZ = (i32)(camz / scale);
+        i32 camSnapX = stepsX * scale;
+        i32 camSnapZ = stepsZ * scale;
+
+        // if (frameCount % 120 == 0)
+            // printf("level %i, stepsX %i, stepsZ %i, camSnapX %i, camSnapZ %i \n\n", i, stepsX, stepsZ, camSnapX, camSnapZ);
+
+        viewPosXZ[0] = camSnapX;
+        viewPosXZ[1] = camSnapZ;
+
+        i32 r = static_cast<i32>(R * scale);
+        i32 m = static_cast<i32>(M * scale);
+        i32 gap = static_cast<i32>(Gap * scale);
+
+        x0 = std::floor(-r) + camSnapX;
+        z0 = std::floor(-r) + camSnapZ;
+
+        x1 = x0 + m;
+        xgap = x1 + m;
+        x2 = xgap + gap;
+        x3 = x2 + m;
+
+        z1 = z0 + m;
+        zgap = z1 + m;
+        z2 = zgap + gap;
+        z3 = z2 + m;
+
+// region Trims Coordinate Calculation
+        vY = z0 - scale; // constant for both vertical trims
+        hX = x0; // constant for both horizontal trims
+
+        if (stepsX >= 0) {
+            vXLeft = (x0 - scale);
+
+            if (stepsX % 2 == 0)
+                vXRight = (x3 + m);
+            else
+                vXRight = vXLeft - scale;
+        }
+        else {
+            vXRight = (x3 + m);
+
+            if (stepsX % 2 != 0)
+                vXLeft = vXRight + scale;
+            else
+                vXLeft = x0 - scale;
+        }
+
+        if (stepsZ >= 0) {
+            hZLow = (z0 - scale);
+
+            if (stepsZ % 2 == 0)
+                hZHigh = (z3 + m);
+            else {
+                hZHigh = hZLow - scale;
+                vY -= scale;
+            }
+        }
+        else {
+            hZHigh = (z3 + m);
+
+            if (stepsZ % 2 != 0) {
+                hZLow = hZHigh + scale;
+                vY += scale;
+            }
+            else
+                hZLow = z0 - scale;
+        }
+//endregion
+
+// region Drawing
+#ifdef DRAW_DEBUG_TERRAIN_COLORS
+        DrawMesh(terrain.blockMesh, x0, z0, scale, color4);
+        DrawMesh(terrain.blockMesh, x1, z0, scale, color4);
+        DrawMesh(terrain.blockMesh, x2, z0, scale, color4);
+        DrawMesh(terrain.blockMesh, x3, z0, scale, color4);
+        DrawMesh(terrain.blockMesh, x0, z1, scale, color4);
+        DrawMesh(terrain.blockMesh, x3, z1, scale, color4);
+        DrawMesh(terrain.blockMesh, x0, z2, scale, color4);
+        DrawMesh(terrain.blockMesh, x3, z2, scale, color4);
+        DrawMesh(terrain.blockMesh, x0, z3, scale, color4);
+        DrawMesh(terrain.blockMesh, x1, z3, scale, color4);
+        DrawMesh(terrain.blockMesh, x2, z3, scale, color4);
+        DrawMesh(terrain.blockMesh, x3, z3, scale, color4);
+        DrawMesh(terrain.fixUpXMesh, x0, zgap, scale, color2);
+        DrawMesh(terrain.fixUpXMesh, x3, zgap, scale, color2);
+        DrawMesh(terrain.fixUpYMesh, xgap, z0, scale, color3);
+        DrawMesh(terrain.fixUpYMesh, xgap, z3, scale, color3);
+        DrawMesh(terrain.trimYMesh, vXLeft, vY, scale, color5);
+        DrawMesh(terrain.trimYMesh, vXRight, vY, scale, color5);
+        DrawMesh(terrain.trimXMesh, hX, hZLow, scale, color5);
+        DrawMesh(terrain.trimXMesh, hX, hZHigh, scale, color5);
+#else
+        DrawMesh(terrain.blockMesh, x0, z0, scale);
+        DrawMesh(terrain.blockMesh, x1, z0, scale);
+        DrawMesh(terrain.blockMesh, x2, z0, scale);
+        DrawMesh(terrain.blockMesh, x3, z0, scale);
+        DrawMesh(terrain.blockMesh, x0, z1, scale);
+        DrawMesh(terrain.blockMesh, x3, z1, scale);
+        DrawMesh(terrain.blockMesh, x0, z2, scale);
+        DrawMesh(terrain.blockMesh, x3, z2, scale);
+        DrawMesh(terrain.blockMesh, x0, z3, scale);
+        DrawMesh(terrain.blockMesh, x1, z3, scale);
+        DrawMesh(terrain.blockMesh, x2, z3, scale);
+        DrawMesh(terrain.blockMesh, x3, z3, scale);
+        DrawMesh(terrain.fixUpXMesh, x0, zgap, scale);
+        DrawMesh(terrain.fixUpXMesh, x3, zgap, scale);
+        DrawMesh(terrain.fixUpYMesh, xgap, z0, scale);
+        DrawMesh(terrain.fixUpYMesh, xgap, z3, scale);
+        DrawMesh(terrain.trimYMesh, vXLeft, vY, scale);
+        DrawMesh(terrain.trimYMesh, vXRight, vY, scale);
+        DrawMesh(terrain.trimXMesh, hX, hZLow, scale);
+        DrawMesh(terrain.trimXMesh, hX, hZHigh, scale);
+#endif
+
+//endregion
+    }
 
     // Reset State
     glBindTexture(GL_TEXTURE_2D, 0);
@@ -1101,8 +1299,8 @@ void Bloom(const RenderTarget& target,
            AssetManager& assets,
            bool readFromBufferA,
 
-           float BloomExposure,
-           float BloomThreshold) {
+           f32 BloomExposure,
+           f32 BloomThreshold) {
 
 
     auto sourceFrameTextureId =  readFromBufferA ? stack.postProcessA_Texture : stack.postProcessB_Texture;
@@ -1230,7 +1428,7 @@ void GL_UIPass(RenderTarget& target, GameScene& scene, AssetManager& assets, MyG
     if (count == 0) {
         return;
     }
-    vec2 screenSize = {(float)target.width, (float)target.height};
+    vec2 screenSize = {(f32)target.width, (f32)target.height};
 
     glBindFramebuffer(GL_FRAMEBUFFER, 0);
 

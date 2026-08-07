@@ -8,7 +8,7 @@
 #include "InputSystem.h"
 #include "ProgramWindow.h"
 
-static bool demoOpen = true;
+static bool demoOpen = false;
 
 void MyGui::InitForWindow(ProgramWindow* window) {
     IMGUI_CHECKVERSION();
@@ -33,7 +33,13 @@ void MyGui::InitForWindow(ProgramWindow* window) {
     }
 }
 
+
 void MyGui::EndFrame() {
+    if (!initialized) {
+        return;
+    }
+    // std::cout << "GUI --- EndFrame" << std::endl;
+    ImGui::EndFrame();
 }
 
 
@@ -42,6 +48,7 @@ void MyGui::StartFrame() {
     if (!initialized) {
         return;
     }
+    // std::cout << "GUI --- StartFrame" << std::endl;
     ImGuiIO& io = ImGui::GetIO();
     io.DeltaTime = static_cast<f32>(Time_GetDelta());
     io.DisplaySize = ImVec2(static_cast<f32>(windowPtr->width), static_cast<f32>(windowPtr->height));

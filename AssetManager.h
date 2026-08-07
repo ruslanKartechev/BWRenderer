@@ -63,7 +63,6 @@ public:
     SlotMap<Texture> textures = {};
     SlotMap<Mesh> meshes = {};
 
-
     static std::string GetGlobalPath(const char* resourcesPath);
     static std::string GetProjectSettingsPath();
 

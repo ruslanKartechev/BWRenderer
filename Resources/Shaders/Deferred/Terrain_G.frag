@@ -1,4 +1,5 @@
 #version 450 core
+#define DEBUG_COLORS_
 
 layout(location = 0) out vec4 gAlbedoSmoothness;
 layout(location = 1) out vec4 gNormal;
@@ -12,7 +13,7 @@ layout(binding = 5) uniform sampler2D _TERRAIN_TEX_4;
 in vec4 out_vertColor;
 in vec2 v_uv;
 in vec3 out_normal;
-in mat3 out_TBN;
+//in mat3 out_TBN;
 in vec3 FragPos;
 
 uniform float _METALLIC;
@@ -38,10 +39,14 @@ void main(){
     vec4 col3 = texture(_TERRAIN_TEX_3, scaledUV) * w3;
     vec4 col4 = texture(_TERRAIN_TEX_4, scaledUV) * 0;
     vec4 finalColor = col1 + col2 + col3 + col4;
-    finalColor = clamp(finalColor, 0.0, 1.0) * out_vertColor;
-//    finalColor = finalColor * out_vertColor;
-//    finalColor = vec4(scaledUV.x, scaledUV.y, 0.0, 1.0);
+    finalColor = clamp(finalColor, vec4(0.0), vec4(1.0));
+
+//    finalColor = vec4(v_uv.x, v_uv.y, 0.0, 1.0);
 
     gAlbedoSmoothness = vec4(finalColor.xyz, _SMOOTHNESS);
     gNormal = vec4(out_normal, _SSR_POWER);
+
+#if DEBUG_COLORS
+    gAlbedoSmoothness = vec4(out_vertColor.rgb, _SMOOTHNESS);
+#endif
 }

@@ -8,7 +8,7 @@ class NoiseGenerator{
 public:
     static bool GeneratePerlin(NoiseData& data);
 
-    static bool GenerateSplatMapForTerrain(SplatMapData& splat, NoiseData& terrainNoise);
+    static bool GenerateSplatMapForTerrain(SplatMapData& splat, NoiseData& terrainNoise, f32 heightPower = 3.0);
 
     static bool FreeDataSplat(SplatMapData& splat);
 

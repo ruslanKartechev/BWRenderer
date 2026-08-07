@@ -5,6 +5,7 @@
 #include "ProjectSettings.h"
 #include "ShaderWatcher.h"
 #include "myGui.h"
+#include "Script.h"
 
 class Engine {
 
@@ -19,11 +20,16 @@ public :
     ShaderWatcher shaderWatcher = {};
     ProjectSettings settings = {};
     MyGui gui = {};
+
+    std::vector<Script> scripts = {};
+
     //endregion
 
     // core Metrics
-    double runningTime;
+    f64 runningTime;
+    f32 deltaTime;
     u64 frameCount;
+
     // endregion
 
     static Engine* GetInstance();
