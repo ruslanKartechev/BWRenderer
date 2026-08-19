@@ -7,13 +7,13 @@
 class NoiseGenerator{
 public:
     static bool GeneratePerlin(NoiseData& data);
+    static void GenerateAdditionalPerlin(NoiseData& data, f32 cameraX, f32 cameraY);
 
     static bool GenerateSplatMapForTerrain(SplatMapData& splat, NoiseData& terrainNoise, f32 heightPower = 3.0);
 
     static bool FreeDataSplat(SplatMapData& splat);
 
     static bool FreeDataNoise(NoiseData& splat);
-
 
 private:
 

@@ -43,7 +43,7 @@ void ScriptCameraControls::ControlCamera(f32 dt) {
     Input_GetMousePosition(mousePosition);
     bool isMoving = localMove[0] != 0 || localMove[1] != 0 || localMove[2] != 0;
     if (isMoving) {
-        elapsedTimeMoving += Time_GetDelta();
+        elapsedTimeMoving += Time_Dt();
     }
     else{
         elapsedTimeMoving = 0.0;

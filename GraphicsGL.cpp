@@ -546,7 +546,7 @@ void GL_AllocateGUIQuad(UIObject& obj) {
     glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, ebo);
     glBufferData(GL_ELEMENT_ARRAY_BUFFER, sizeof(i32) * indexCount, indexData, GL_DYNAMIC_DRAW);
 
-    glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, strideBytes, (const void*)(startIndexVertex * sizeof(f32) )); // XYZ
+    glVertexAttribPointer(0, 2, GL_FLOAT, GL_FALSE, strideBytes, (const void*)(startIndexVertex * sizeof(f32) )); // XYZ
     glEnableVertexAttribArray(0);
 
     glVertexAttribPointer(1, 2, GL_FLOAT, GL_FALSE, strideBytes, (const void*) (startIndexUV * sizeof(f32) )); // UV
@@ -594,10 +594,14 @@ void GL_AllocateGraphicsTerrain(Terrain& terrain) {
     GL_AllocateClipmapMesh(terrain.centerMesh);
     GL_AllocateClipmapMesh(terrain.blockMesh);
     GL_AllocateClipmapMesh(terrain.fixUpXMesh);
-    GL_AllocateClipmapMesh(terrain.fixUpYMesh);
+    GL_AllocateClipmapMesh(terrain.fixUpZMesh);
     GL_AllocateClipmapMesh(terrain.trimXMesh);
-    GL_AllocateClipmapMesh(terrain.trimYMesh);
+    GL_AllocateClipmapMesh(terrain.trimZMesh);
 
+    GL_AllocateClipmapMesh(terrain.zeroAreaX1);
+    GL_AllocateClipmapMesh(terrain.zeroAreaX2);
+    GL_AllocateClipmapMesh(terrain.zeroAreaZ1);
+    GL_AllocateClipmapMesh(terrain.zeroAreaZ2);
 }
 
 
@@ -627,29 +631,11 @@ void BindRenderTarget(const RenderTarget& target) {
 }
 
 
-void GL_UseMaterial(Material& material,
-                    u32 shaderId,
-                    AssetManager& assets) {
-
-    glUseProgram(shaderId);
-
-    for (auto& floatPair: material.floats) {
-        glUniform1f(floatPair.first, floatPair.second);
-    }
-
-
-    for (auto& vecPair: material.vectors) {
-        vec4 vec = {vecPair.second.x, vecPair.second.y, vecPair.second.z, vecPair.second.w};
-        glUniform4fv(vecPair.first, 1, (const f32*) vec);
-    }
-
-
+void GL_BindMaterialTextures(Material& material, AssetManager& assets, bool log = false) {
     for (auto& texturePair: material.textures) {
-
         i32 binding = texturePair.first;
         MaterialTextureProp& texProp = texturePair.second;
         Texture& texture = assets.textures.GetItemRef(texProp.texHandle);
-
         if (assets.textures.IsNullItem(texture)) {
             // std::cerr<<"Failed to load texture"<<std::endl;
             continue;
@@ -673,8 +659,27 @@ void GL_UseMaterial(Material& material,
         auto texBindingLocation = GL_TEXTURE0 + binding;
         glActiveTexture(texBindingLocation);
         glBindTexture(type, texture.glHandle);
-        // printf("[R] [%s] TexActive: %d, UniformBinding: %d, TextureAssetIndex %d, glHandle %d \n", texture.name, texBindingLocation, binding, texProp.texHandle.index, texture.glHandle);
+        // if (log)
+        // {
+        //     printf("[R] [%s] texBindingLocation: %d, UniformBinding: %d, TextureHandleIndex %d, glHandle %d , size (%d,%d)\n",
+        //         texture.name, texBindingLocation, binding, texProp.texHandle.index, texture.glHandle, texture.width, texture.height);
+        // }
     }
+}
+
+void GL_UseMaterial(Material& material,
+                    u32 shaderId,
+                    AssetManager& assets) {
+
+    glUseProgram(shaderId);
+    for (auto& floatPair: material.floats) {
+        glUniform1f(floatPair.first, floatPair.second);
+    }
+    for (auto& vecPair: material.vectors) {
+        vec4 vec = {vecPair.second.x, vecPair.second.y, vecPair.second.z, vecPair.second.w};
+        glUniform4fv(vecPair.first, 1, (const f32*) vec);
+    }
+    GL_BindMaterialTextures(material, assets);
 }
 
 
@@ -974,14 +979,11 @@ void GL_InstancedPass(RenderTarget& target, AssetManager& assets,
 
         if (buffer.isDirty) {
             buffer.isDirty = false;
-            std::cout << "LITTLE DIRTY BUFFER " << std::endl;
             GLsizeiptr dataSize = sizeof(mat4) * buffer.entries.size();
             glBindBuffer(GL_ARRAY_BUFFER, buffer.arrayObject);
             glBufferSubData(GL_ARRAY_BUFFER, 0, dataSize, buffer.entries.data());
             glBindBuffer(GL_ARRAY_BUFFER, 0);
-
         }
-
         glBindVertexArray(buffer.renderData.vao);
         // printf("Rendering shader id (%d)  view_Location (%d), proj_Location (%d)\n", shaderId, view_Location, proj_Location);
 
@@ -994,11 +996,11 @@ void GL_InstancedPass(RenderTarget& target, AssetManager& assets,
         glBindVertexArray(0);
     }
 }
-
 // endregion
 
 
 //region Terrain render
+// TODO FIX THE degenerate triangle strips at the bottom and left (rotation is flipped)
 void GL_TerrainPass(RenderTarget& renderTarget, GameScene& scene, Camera& camera, AssetManager& assets) {
 
     if (scene.terrain.isBuilt == false) {
@@ -1012,37 +1014,54 @@ void GL_TerrainPass(RenderTarget& renderTarget, GameScene& scene, Camera& camera
         std::cerr << "No terrain material" << std::endl;
         return;
     }
+
     Transform& transform = scene.transforms.GetItemRef(terrain.hTransform);
     Shader& shader = assets.shaders.GetItemRef(material.shaderHandle);
     auto shaderId = shader.GetShaderId();
 
-    // printf("[TERRAIN] material handle %d, shader %d, transformHandle: %d  \n", terrain.hMaterial.index, shaderId, terrain.hTransform.index);
-    glBindFramebuffer(GL_FRAMEBUFFER, renderTarget.mainFB);
-
-    GL_UseMaterial(material, shaderId, assets);
     f32 worldSize = terrain.worldSize;
     vec4 sizeScaleVec = {
-        (worldSize ),
-        (worldSize ),
+        (worldSize),
+        (worldSize),
         terrain.heightData.scale,
         1.0
     };
-    shader.SetVec4("_SIZE", sizeScaleVec);
-    // printf("Terrain Scale: %f, scale: %f , LODs: %d  \n\n", worldSize, terrain.heightData.scale, terrain.LODS);
+    // 1. Extract Frustum Planes
+    mat4 viewProj;
+    glm_mat4_mul(camera.projectionMatrix, camera.viewMatrix, viewProj);
+    vec4 frustumPlanes[6];
+    glm_frustum_planes(viewProj, frustumPlanes); // left, right, bottom, top, near, far
+
+    // 2. AABB vs Frustum Intersection Test
+    auto IsInsideFrustum = [](vec3 min, vec3 max, vec4 planes[6]) -> bool {
+        for (int i = 0; i < 6; i++) {
+            f32 px = planes[i][0] > 0.0f ? max[0] : min[0];
+            f32 py = planes[i][1] > 0.0f ? max[1] : min[1];
+            f32 pz = planes[i][2] > 0.0f ? max[2] : min[2];
+            f32 distance = (px * planes[i][0]) + (py * planes[i][1]) + (pz * planes[i][2]) + planes[i][3];
+            if (distance < 0.0f) {
+                return false;
+            }
+        }
+        return true;
+    };
 
     glEnable(GL_DEPTH_TEST);
     glDepthFunc(GL_LEQUAL);
     glDepthMask(GL_TRUE);
-
     glEnable(GL_CULL_FACE);
     glCullFace(GL_FRONT);
     glDisable(GL_BLEND);
+    glBindFramebuffer(GL_FRAMEBUFFER, renderTarget.mainFB);
+    GL_UseMaterial(material, shaderId, assets);
+    shader.SetVec4("_SIZE", sizeScaleVec);
 
     i32 model_Location = glGetUniformLocation(shaderId, ID_UNIFORM_MODEL);
     i32 view_Location = glGetUniformLocation(shaderId, ID_UNIFORM_VIEW);
     i32 proj_Location = glGetUniformLocation(shaderId, ID_UNIFORM_PROJECTION);
     i32 color_Location = glGetUniformLocation(shaderId, ID_COLOR_TINT);
     i32 scaleLoc = glGetUniformLocation(shaderId, "_LOD_SCALE");
+    i32 skirtLoc = glGetUniformLocation(shaderId, "_IS_SKIRT");
     i32 camPosLoc = glGetUniformLocation(shaderId, "_CAMERA_POSITION");
 
     f32 terrainY = transform.position[1];
@@ -1052,19 +1071,31 @@ void GL_TerrainPass(RenderTarget& renderTarget, GameScene& scene, Camera& camera
     f32 camz = camTransform.position[2];
 
     if (terrain.debugSnapping) {
-        camx = terrain.textOffsetX;
-        camz = terrain.textOffsetZ;
+        camx = terrain.testOffsetX;
+        camz = terrain.testOffsetZ;
     }
+    camx = terrain.testViewPositionX;
+    camz = terrain.testViewPositionZ;
 
     // terrainY = 0.0f;
     vec2 viewPosXZ = {0, 0};
+    f32 yMax = terrainY + terrain.heightData.scale + 100;
+    f32 yMin = terrainY - terrain.heightData.scale;
 
-    auto DrawMesh = [&](ClipmapMesh& mesh, f32 ox, f32 oz, f32 scale
+    auto DrawMesh = [&](ClipmapMesh& mesh, f32 ox, f32 oz,
+        f32 scale, f32 skirt
 #ifdef DRAW_DEBUG_TERRAIN_COLORS
         , vec4 color
 #endif
         )
     {
+        vec3 aabbMin = {ox, yMin, oz};
+        vec3 aabbMax = {ox + mesh.sizeX * scale, yMax, oz + mesh.sizeZ * scale};
+        bool culled = !IsInsideFrustum(aabbMin, aabbMax, frustumPlanes);
+        if (culled) {
+            return;
+        }
+
         mat4 matModel;
         glm_mat4_identity(matModel);
         glm_translate(matModel, vec3{ox, terrainY, oz});
@@ -1073,6 +1104,8 @@ void GL_TerrainPass(RenderTarget& renderTarget, GameScene& scene, Camera& camera
         glUniformMatrix4fv(view_Location, 1, GL_FALSE, (f32*)camera.viewMatrix);
         glUniformMatrix4fv(proj_Location, 1, GL_FALSE, (f32*)camera.projectionMatrix);
         glUniform1f(scaleLoc, scale);
+        glUniform1f(skirtLoc, skirt);
+
         glUniform2fv(camPosLoc, 1, (const f32*)viewPosXZ);
 #ifdef DRAW_DEBUG_TERRAIN_COLORS
         glUniform4fv(color_Location, 1, (const f32*)color);
@@ -1094,7 +1127,6 @@ void GL_TerrainPass(RenderTarget& renderTarget, GameScene& scene, Camera& camera
     f32 M = terrain.M;
     f32 Gap = terrain.Gap;
     i32 LODS = terrain.LODS;
-
     // Central chunk
     {
         viewPosXZ[0] = static_cast<f32>( static_cast<i32>(camx) );
@@ -1102,27 +1134,33 @@ void GL_TerrainPass(RenderTarget& renderTarget, GameScene& scene, Camera& camera
         f32 offset = std::floor(-R * 0.5f);
         f32 x = viewPosXZ[0] + offset;
         f32 z = viewPosXZ[1] + offset;
-        DrawMesh(terrain.centerMesh, x, z, 1.0f, color1);
+#ifdef DRAW_DEBUG_TERRAIN_COLORS
+        DrawMesh(terrain.centerMesh, x, z, 1.0f, 0.0f, color1);
+#else
+        DrawMesh(terrain.centerMesh, x, z, 1.0f, 0.0f);
+#endif
     }
 
-    // i32 frameCount = Engine::GetInstance()->frameCount;
     // Rings around center starting from scale = 1
     for (i32 i = 0; i < LODS; i++) {
 
         i32 x0, x1, x2, x3, xgap = 0.0;
         i32 z0, z1, z2, z3, zgap = 0.0;
-
         // Coordinates for vertical trims
-        i32 vXLeft, vXRight, vY = 0;
+        i32 trimVertL, trimVertR, trimVertZ = 0;
         // Coordinates for horizontal trims
-        i32 hZLow, hZHigh, hX = 0;
+        i32 trimHorLow, trimHorHigh, trimHorX = 0;
+
+        // Coordinates for vertical skirts
+        i32 skirtVertLeft = 0, skirtVertRight = 0, skirtVertZ = 0;
+        // Coordinates for horizontal skirts
+        i32 skirtZLow = 0, skirtZHigh = 0, skirtHorX = 0;
 
         i32 scale = static_cast<i32>(1 << i);
         i32 stepsX = (i32)(camx / scale);
         i32 stepsZ = (i32)(camz / scale);
         i32 camSnapX = stepsX * scale;
         i32 camSnapZ = stepsZ * scale;
-
         // if (frameCount % 120 == 0)
             // printf("level %i, stepsX %i, stepsZ %i, camSnapX %i, camSnapZ %i \n\n", i, stepsX, stepsZ, camSnapX, camSnapZ);
 
@@ -1146,92 +1184,135 @@ void GL_TerrainPass(RenderTarget& renderTarget, GameScene& scene, Camera& camera
         z2 = zgap + gap;
         z3 = z2 + m;
 
-// region Trims Coordinate Calculation
-        vY = z0 - scale; // constant for both vertical trims
-        hX = x0; // constant for both horizontal trims
+        // region Trims Coordinate Calculation
+        trimVertZ = z0 - scale; // constant for both vertical trims
+        trimHorX = x0; // constant for both horizontal trims
+
 
         if (stepsX >= 0) {
-            vXLeft = (x0 - scale);
+            trimVertL = (x0 - scale);
+            skirtVertLeft = trimVertL;
 
-            if (stepsX % 2 == 0)
-                vXRight = (x3 + m);
-            else
-                vXRight = vXLeft - scale;
+            if (stepsX % 2 == 0) {
+                trimVertR = (x3 + m);
+                skirtVertRight = trimVertR + scale;
+            }
+            else {
+                trimVertR = trimVertL - scale;
+                skirtVertRight = trimVertR;
+            }
         }
         else {
-            vXRight = (x3 + m);
+            trimVertR = (x3 + m);
+            skirtVertRight = trimVertR + scale;
 
-            if (stepsX % 2 != 0)
-                vXLeft = vXRight + scale;
-            else
-                vXLeft = x0 - scale;
+            if (stepsX % 2 != 0) {
+                trimVertL = trimVertR + scale;
+                skirtVertLeft = trimVertL + scale;
+            }
+            else {
+                trimVertL = x0 - scale;
+                skirtVertLeft = trimVertL;
+            }
         }
 
         if (stepsZ >= 0) {
-            hZLow = (z0 - scale);
+            trimHorLow = (z0 - scale);
+            skirtZLow = trimHorLow;
 
-            if (stepsZ % 2 == 0)
-                hZHigh = (z3 + m);
+            if (stepsZ % 2 == 0) {
+                trimHorHigh = (z3 + m);
+                skirtZHigh = trimHorHigh + scale;
+            }
             else {
-                hZHigh = hZLow - scale;
-                vY -= scale;
+                trimHorHigh = trimHorLow - scale;
+                skirtZHigh  = trimHorHigh;
+                trimVertZ -= scale;
             }
         }
         else {
-            hZHigh = (z3 + m);
-
+            trimHorHigh = (z3 + m);
+            skirtZHigh = trimHorHigh + scale;
             if (stepsZ % 2 != 0) {
-                hZLow = hZHigh + scale;
-                vY += scale;
+                trimHorLow = trimHorHigh + scale;
+                skirtZLow = trimHorLow + scale;
+                trimVertZ += scale;
             }
-            else
-                hZLow = z0 - scale;
+            else {
+                trimHorLow = z0 - scale;
+                skirtZLow = trimHorLow;
+            }
         }
+        skirtHorX = trimHorX - scale;
+        skirtVertZ = trimVertZ;
+
+        // printf("LOD lvl %d\n", i);
+        // printf("skirtVertLeft: %i\n", skirtVertLeft);
+        // printf("skirtVertRight: %i\n", skirtVertRight);
+        // printf("skirtVertZ: %i\n", skirtVertZ);
+        // printf("skirtZLow: %i\n", skirtZLow);
+        // printf("skirtZHigh: %i\n", skirtZHigh);
+        // printf("skirtHorX: %i\n", skirtHorX);
+
+
 //endregion
 
 // region Drawing
 #ifdef DRAW_DEBUG_TERRAIN_COLORS
-        DrawMesh(terrain.blockMesh, x0, z0, scale, color4);
-        DrawMesh(terrain.blockMesh, x1, z0, scale, color4);
-        DrawMesh(terrain.blockMesh, x2, z0, scale, color4);
-        DrawMesh(terrain.blockMesh, x3, z0, scale, color4);
-        DrawMesh(terrain.blockMesh, x0, z1, scale, color4);
-        DrawMesh(terrain.blockMesh, x3, z1, scale, color4);
-        DrawMesh(terrain.blockMesh, x0, z2, scale, color4);
-        DrawMesh(terrain.blockMesh, x3, z2, scale, color4);
-        DrawMesh(terrain.blockMesh, x0, z3, scale, color4);
-        DrawMesh(terrain.blockMesh, x1, z3, scale, color4);
-        DrawMesh(terrain.blockMesh, x2, z3, scale, color4);
-        DrawMesh(terrain.blockMesh, x3, z3, scale, color4);
-        DrawMesh(terrain.fixUpXMesh, x0, zgap, scale, color2);
-        DrawMesh(terrain.fixUpXMesh, x3, zgap, scale, color2);
-        DrawMesh(terrain.fixUpYMesh, xgap, z0, scale, color3);
-        DrawMesh(terrain.fixUpYMesh, xgap, z3, scale, color3);
-        DrawMesh(terrain.trimYMesh, vXLeft, vY, scale, color5);
-        DrawMesh(terrain.trimYMesh, vXRight, vY, scale, color5);
-        DrawMesh(terrain.trimXMesh, hX, hZLow, scale, color5);
-        DrawMesh(terrain.trimXMesh, hX, hZHigh, scale, color5);
+        DrawMesh(terrain.blockMesh, x0, z0, scale, 0.0f, color4);
+        DrawMesh(terrain.blockMesh, x1, z0, scale, 0.0f, color4);
+        DrawMesh(terrain.blockMesh, x2, z0, scale, 0.0f, color4);
+        DrawMesh(terrain.blockMesh, x3, z0, scale, 0.0f, color4);
+        DrawMesh(terrain.blockMesh, x0, z1, scale, 0.0f, color4);
+        DrawMesh(terrain.blockMesh, x3, z1, scale, 0.0f, color4);
+        DrawMesh(terrain.blockMesh, x0, z2, scale, 0.0f, color4);
+        DrawMesh(terrain.blockMesh, x3, z2, scale, 0.0f, color4);
+        DrawMesh(terrain.blockMesh, x0, z3, scale, 0.0f, color4);
+        DrawMesh(terrain.blockMesh, x1, z3, scale, 0.0f, color4);
+        DrawMesh(terrain.blockMesh, x2, z3, scale, 0.0f, color4);
+        DrawMesh(terrain.blockMesh, x3, z3, scale, 0.0f, color4);
+        DrawMesh(terrain.fixUpXMesh, x0, zgap, scale, 0.0f, color2);
+        DrawMesh(terrain.fixUpXMesh, x3, zgap, scale, 0.0f, color2);
+        DrawMesh(terrain.fixUpZMesh, xgap, z0, scale, 0.0f, color3);
+        DrawMesh(terrain.fixUpZMesh, xgap, z3, scale, 0.0f, color3);
+
+        DrawMesh(terrain.trimZMesh, trimVertL, trimVertZ, scale, 0.0f, color5);
+        DrawMesh(terrain.trimZMesh, trimVertR, trimVertZ, scale, 0.0f, color5);
+        DrawMesh(terrain.trimXMesh, trimHorX, trimHorLow, scale, 0.0f, color5);
+        DrawMesh(terrain.trimXMesh, trimHorX, trimHorHigh, scale, 0.0f, color5);
+
+        DrawMesh(terrain.zeroAreaX1, skirtHorX, skirtZHigh, scale, 1.0f, color3);
+        DrawMesh(terrain.zeroAreaX2, skirtHorX, skirtZLow, scale, 1.0f, color3);
+        DrawMesh(terrain.zeroAreaZ1, skirtVertLeft, skirtVertZ, scale, 1.0f, color3);
+        DrawMesh(terrain.zeroAreaZ2, skirtVertRight, skirtVertZ, scale, 1.0f, color3);
+
+
 #else
-        DrawMesh(terrain.blockMesh, x0, z0, scale);
-        DrawMesh(terrain.blockMesh, x1, z0, scale);
-        DrawMesh(terrain.blockMesh, x2, z0, scale);
-        DrawMesh(terrain.blockMesh, x3, z0, scale);
-        DrawMesh(terrain.blockMesh, x0, z1, scale);
-        DrawMesh(terrain.blockMesh, x3, z1, scale);
-        DrawMesh(terrain.blockMesh, x0, z2, scale);
-        DrawMesh(terrain.blockMesh, x3, z2, scale);
-        DrawMesh(terrain.blockMesh, x0, z3, scale);
-        DrawMesh(terrain.blockMesh, x1, z3, scale);
-        DrawMesh(terrain.blockMesh, x2, z3, scale);
-        DrawMesh(terrain.blockMesh, x3, z3, scale);
-        DrawMesh(terrain.fixUpXMesh, x0, zgap, scale);
-        DrawMesh(terrain.fixUpXMesh, x3, zgap, scale);
-        DrawMesh(terrain.fixUpYMesh, xgap, z0, scale);
-        DrawMesh(terrain.fixUpYMesh, xgap, z3, scale);
-        DrawMesh(terrain.trimYMesh, vXLeft, vY, scale);
-        DrawMesh(terrain.trimYMesh, vXRight, vY, scale);
-        DrawMesh(terrain.trimXMesh, hX, hZLow, scale);
-        DrawMesh(terrain.trimXMesh, hX, hZHigh, scale);
+        DrawMesh(terrain.blockMesh, x0, z0, scale, 0.0f);
+        DrawMesh(terrain.blockMesh, x1, z0, scale, 0.0f);
+        DrawMesh(terrain.blockMesh, x2, z0, scale, 0.0f);
+        DrawMesh(terrain.blockMesh, x3, z0, scale, 0.0f);
+        DrawMesh(terrain.blockMesh, x0, z1, scale, 0.0f);
+        DrawMesh(terrain.blockMesh, x3, z1, scale, 0.0f);
+        DrawMesh(terrain.blockMesh, x0, z2, scale, 0.0f);
+        DrawMesh(terrain.blockMesh, x3, z2, scale, 0.0f);
+        DrawMesh(terrain.blockMesh, x0, z3, scale, 0.0f);
+        DrawMesh(terrain.blockMesh, x1, z3, scale, 0.0f);
+        DrawMesh(terrain.blockMesh, x2, z3, scale, 0.0f);
+        DrawMesh(terrain.blockMesh, x3, z3, scale, 0.0f);
+        DrawMesh(terrain.fixUpXMesh, x0, zgap, scale, 0.0f);
+        DrawMesh(terrain.fixUpXMesh, x3, zgap, scale, 0.0f);
+        DrawMesh(terrain.fixUpZMesh, xgap, z0, scale, 0.0f);
+        DrawMesh(terrain.fixUpZMesh, xgap, z3, scale, 0.0f);
+        DrawMesh(terrain.trimZMesh, trimVertL, trimVertZ, scale, 0.0f);
+        DrawMesh(terrain.trimZMesh, trimVertR, trimVertZ, scale, 0.0f);
+        DrawMesh(terrain.trimXMesh, trimHorX, trimHorLow, scale, 0.0f);
+        DrawMesh(terrain.trimXMesh, trimHorX, trimHorHigh, scale, 0.0f);
+
+        DrawMesh(terrain.zeroAreaX1, skirtHorX, skirtZHigh, scale, 1.0f);
+        DrawMesh(terrain.zeroAreaX2, skirtHorX, skirtZLow, scale, 1.0f);
+        DrawMesh(terrain.zeroAreaZ1, skirtVertLeft, skirtVertZ, scale, 1.0f);
+        DrawMesh(terrain.zeroAreaZ2, skirtVertRight, skirtVertZ, scale, 1.0f);
 #endif
 
 //endregion
@@ -1413,14 +1494,11 @@ void GL_RenderPostProcess(const RenderTarget& target,
 
     GL_CleanState();
 }
-
 //endregion
 
 
 
 //region UI pass
-
-
 void GL_UIPass(RenderTarget& target, GameScene& scene, AssetManager& assets, MyGui* gui) {
     constexpr i32 quadIndexCount = 6;
 
@@ -1429,9 +1507,7 @@ void GL_UIPass(RenderTarget& target, GameScene& scene, AssetManager& assets, MyG
         return;
     }
     vec2 screenSize = {(f32)target.width, (f32)target.height};
-
     glBindFramebuffer(GL_FRAMEBUFFER, 0);
-
 
     glDisable(GL_DEPTH_TEST);
     glDepthMask(GL_FALSE);
@@ -1450,10 +1526,13 @@ void GL_UIPass(RenderTarget& target, GameScene& scene, AssetManager& assets, MyG
         auto& shader = assets.shaders.GetItemRef(material.shaderHandle);
         i32 shaderId = shader.GetShaderId();
         GL_UseMaterial(material, shaderId, assets);
-
         vec4 positionSize = {uiObj.position[0], uiObj.position[1], uiObj.size[0], uiObj.size[1]};
         shader.SetVec4("u_PositionSize", positionSize);
         shader.SetVec2("u_ScreenResolution", screenSize);
+        //
+        // printf("----------------\n\n");
+        // GL_BindMaterialTextures(material, assets, true);
+        // printf("----------------\n\n");
 
         glBindVertexArray(uiObj.vao);
         glDrawElements(GL_TRIANGLES, quadIndexCount, GL_UNSIGNED_INT, nullptr);
@@ -1479,12 +1558,10 @@ void GL_RenderScene(Engine& engine) {
     auto& settings = engine.settings;
     auto& camera = engine.scene.camera;
     auto& assets = engine.assetManager;
-
     bool postProcess = settings.PostProcess;
     bool devDepths = settings.DevRenderDepths;
     bool devNormals = settings.DevRenderNormals;
     bool devUvs = settings.DevRenderUvs;
-
     bool pp_ssr = settings.PostProcess_SSR;
     bool pp_bloom = settings.PostProcess_Bloom;
     bool pp_dof = settings.PostProcess_DOF;
@@ -1507,11 +1584,8 @@ void GL_RenderScene(Engine& engine) {
 
     GL_OpaquePass(scene, camera, assets, settings);
     GL_InstancedPass(renderTarget, assets, camera);
-
     GL_TerrainPass(renderTarget, scene, camera, assets);
-
     GL_DeferredLightingPass(renderTarget, ppStack, scene, camera, assets);
-
     GL_BlitDepthFromGBuffer(renderTarget, ppStack);
 
     if (settings.RenderSkyBox) {
@@ -1519,9 +1593,7 @@ void GL_RenderScene(Engine& engine) {
     }
     // Transparent Pass
     // GL_ForwardRenderTransparent(engine.scene, camera, assets);
-
     GL_RenderPostProcess(renderTarget, ppStack, assets, camera, settings);
-
     GL_UIPass(renderTarget, scene, assets, &engine.gui);
 
     // if (devDepths) {

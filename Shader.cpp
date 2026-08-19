@@ -10,16 +10,6 @@ static constexpr i32 TYPE_PROGRAM = 2;
 Shader::Shader() : m_isCompiled(false), m_hasErrors(false), m_ShaderID(0) {
 }
 
-// Shader::Shader(Shader&& other) noexcept
-//     : m_ShaderID(other.m_ShaderID),
-//       m_vertexPath(std::move(other.m_vertexPath)),
-//       m_fragmentPath(std::move(other.m_fragmentPath)),
-//       m_isCompiled(other.m_isCompiled),
-//       m_hasErrors(other.m_hasErrors)
-// {
-//     other.m_ShaderID = 0; // Steal the ID, prevent old object from deleting it
-// }
-
 void Shader::GetVertexFragmentPath(const char* shaderName, std::string& out_vertexPath, std::string& out_fragmentPath) {
     std::string path = ProjectSettings::ResourcesPath  + "/Shaders/" + std::string(shaderName);
     out_vertexPath = (path + ".vert");
@@ -179,6 +169,10 @@ bool Shader::CheckCompileErrors(GLuint shaderID, i32 type) {
     return true;
 }
 
+
+i32 Shader::GetUniformLocation(const char* name) {
+    return glGetUniformLocation(m_ShaderID, name);
+}
 
 // region Basic Properties Set
 void Shader::SetBool(const std::string& name, bool value) const {

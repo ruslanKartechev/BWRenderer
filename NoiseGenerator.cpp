@@ -69,7 +69,7 @@ static f32 SmoothStep(f32 edge0, f32 edge1, f32 x) {
 
 bool NoiseGenerator::GenerateSplatMapForTerrain(SplatMapData& splat, NoiseData& terrainNoise, f32 heightPower)
 {
-    if (terrainNoise.dataPtr == nullptr) {
+    if (terrainNoise.dataPtr.empty()) {
         std::cerr << "[NoiseGen] TerrainNoise.dataPtr is null!" << std::endl;
         return false;
     }
@@ -154,21 +154,127 @@ bool NoiseGenerator::GeneratePerlin(NoiseData& data) {
     FreeDataNoise(data);
 
     data.arraySize = data.sizeY * data.sizeX;
-    data.dataPtr = new f32[data.arraySize];
-
+    data.dataPtr.resize(data.arraySize);
     size_t arrIdx = 0;
     for (imax y = 0; y < data.sizeY; y++) {
         for (imax x = 0; x < data.sizeX; x++) {
 
             double val = ValueNoise_2D(x, y, data.octaves);
             val = (val + 1.0) / 2.0;
-            // val = 0.0;
             data.dataPtr[arrIdx] = static_cast<f32>(val);
             arrIdx++;
         }
     }
+    data.windowMaxY = data.sizeY / 2 - 1;
+    data.windowMinY = -data.sizeY / 2;
+    data.windowMaxX = data.sizeX / 2 - 1;
+    data.windowMinX = -data.sizeX / 2;
+
     data.isGenerated = true;
     return true;
+}
+
+static inline int TrueMod(int coord, int size) {
+    int shiftedValue = coord + (size / 2);
+    return (shiftedValue % size + size) % size;
+}
+
+void NoiseGenerator::GenerateAdditionalPerlin(NoiseData& data, f32 cameraX, f32 cameraY) {
+    if (data.dataPtr.empty()) {
+        printf("ERROR null \n");
+        return;
+    }
+    i32 flooredX = floorl(cameraX);
+    i32 flooredY = floorl(cameraY);
+    i32 deltaX = flooredX - data.sourceCenterX;
+    i32 deltaY = flooredY - data.sourceCenterY;
+
+    if (deltaX == 0 && deltaY == 0) {
+        return; // No movement, skip generation
+    }
+
+    // Y MOVEMENT (Update Rows)
+    // Moving Forward
+    while (data.sourceCenterY < flooredY) {
+        data.sourceCenterY++;
+        data.windowMaxY++;
+        data.windowMinY++;
+
+        i32 worldY = data.windowMaxY;
+        i32 bufferY = TrueMod(worldY, data.sizeY);
+        i32 startIdx = bufferY * data.sizeX;
+
+        printf("moving forward : %d , start idx: %d \n", flooredY, startIdx);
+        // Iterate exactly sizeX times across the current window
+        for (i32 i = 0; i < data.sizeX; i++) {
+            i32 worldX = data.windowMinX + i;
+            double val = ValueNoise_2D(worldX, worldY, data.octaves);
+            val = (val + 1.0) / 2.0;
+            i32 bufferX = TrueMod(worldX, data.sizeX);
+            f32 prevValue = data.dataPtr[startIdx + bufferX];
+            data.dataPtr[startIdx + bufferX] = static_cast<f32>(val);
+        }
+        data.updated = true;
+    }
+
+    // Moving Backward
+    while (data.sourceCenterY > flooredY) {
+        data.sourceCenterY--;
+        data.windowMinY--;
+        data.windowMaxY--;
+
+        i32 worldY = data.windowMinY;
+        i32 bufferY = TrueMod(worldY, data.sizeY);
+        i32 startIdx = bufferY * data.sizeX;
+
+        for (i32 i = 0; i < data.sizeX; i++) {
+            i32 worldX = data.windowMinX + i;
+            double val = ValueNoise_2D(worldX, worldY, data.octaves);
+            val = (val + 1.0) / 2.0;
+            i32 bufferX = TrueMod(worldX, data.sizeX);
+            data.dataPtr[startIdx + bufferX] = static_cast<f32>(val);
+        }
+        data.updated = true;
+    }
+
+    // X MOVEMENT (Update Columns)
+    // Right
+    while (data.sourceCenterX < flooredX) {
+        data.sourceCenterX++;
+        data.windowMaxX++;
+        data.windowMinX++;
+
+        i32 worldX = data.windowMaxX;
+        i32 bufferX = TrueMod(worldX, data.sizeX);
+
+        for (i32 i = 0; i < data.sizeY; i++) {
+            i32 worldY = data.windowMinY + i;
+            double val = ValueNoise_2D(worldX, worldY, data.octaves);
+            val = (val + 1.0) / 2.0;
+            i32 bufferY = TrueMod(worldY, data.sizeY);
+            i32 startIdx = bufferY * data.sizeX;
+            data.dataPtr[startIdx + bufferX] = static_cast<f32>(val);
+        }
+        data.updated = true;
+    }
+    // Left
+    while (data.sourceCenterX > flooredX) {
+        data.sourceCenterX--;
+        data.windowMinX--;
+        data.windowMaxX--;
+        i32 worldX = data.windowMinX;
+        i32 bufferX = TrueMod(worldX, data.sizeX);
+
+        for (i32 i = 0; i < data.sizeY; i++) {
+            i32 worldY = data.windowMinY + i;
+            double val = ValueNoise_2D(worldX, worldY, data.octaves);
+            val = (val + 1.0) / 2.0;
+            i32 bufferY = TrueMod(worldY, data.sizeY);
+            i32 startIdx = bufferY * data.sizeX;
+            data.dataPtr[startIdx + bufferX] = static_cast<f32>(val);
+        }
+        data.updated = true;
+    }
 }
 
 
@@ -191,14 +297,9 @@ bool NoiseGenerator::FreeDataSplat(SplatMapData& map) {
 
 bool NoiseGenerator::FreeDataNoise(NoiseData& noise) {
     if (noise.isGenerated) {
-
         noise.isGenerated = false;
-
-        if (noise.dataPtr != nullptr) {
-            delete[] noise.dataPtr;
-            noise.arraySize = 0;
-            return true;
-        }
+        noise.dataPtr.clear();
+        return true;
     }
     return false;
 }

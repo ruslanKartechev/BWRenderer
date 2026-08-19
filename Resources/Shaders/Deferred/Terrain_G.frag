@@ -1,5 +1,5 @@
 #version 450 core
-#define DEBUG_COLORS_
+#define DEBUG_COLORS__
 
 layout(location = 0) out vec4 gAlbedoSmoothness;
 layout(location = 1) out vec4 gNormal;
@@ -46,7 +46,8 @@ void main(){
     gAlbedoSmoothness = vec4(finalColor.xyz, _SMOOTHNESS);
     gNormal = vec4(out_normal, _SSR_POWER);
 
-#if DEBUG_COLORS
+    gAlbedoSmoothness = vec4(uv, 0.0, _SMOOTHNESS);
+#ifdef DEBUG_COLORS
     gAlbedoSmoothness = vec4(out_vertColor.rgb, _SMOOTHNESS);
 #endif
 }

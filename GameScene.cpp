@@ -4,6 +4,10 @@
 #include "GraphicsGL.h"
 
 
+Transform& GameScene::GetCameraTransform() {
+    return transforms.GetItemRef(camera.transformHandle);
+}
+
 Transform& GameScene::GetTransformForObject(Handle& objectHandle) {
     RenderObject& obj = worldObjectsPool.GetItemRef(objectHandle);
     return transforms.GetItemRef(obj.hTransform);

@@ -48,7 +48,7 @@ f64 Time_GetTotal() {
     return s_totalTimeSinceStart;
 }
 
-f64 Time_GetDelta() {
+f64 Time_Dt() {
     return s_delta;
 }
 

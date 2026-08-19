@@ -33,17 +33,20 @@ const char* splatMapTexName = "TerrainSplatMap";
 static TextureHandle h_sandTex;
 static TextureHandle h_grassTex;
 static TextureHandle h_rockTex;
+static Handle hTrackObj;
 
-constexpr i32 NoiseSizeX = 256;
-constexpr i32 NoiseSizeY = 256;
+constexpr i32 NoiseSizeX = 512;
 
 constexpr f32 TerrainHeightScale = 12.0f;
-constexpr f32 TerrainNoisePersistence = .46f;
+constexpr f32 TerrainNoisePersistence = .5f;
+constexpr i32 TerrainSeed = 4;
 constexpr i32 TerrainNoiseOctaves = 10;
-constexpr i32 TerrainSeed = 6;
 
 static bool didGenTerrain;
 static f32 terrainYPositon = 0.0f;
+
+static f32 textureOffsetX = 0;
+static f32 textureOffsetY = 0;
 
 static std::shared_ptr<InstancedBuffer> treesInstanceBuffer = std::make_shared<InstancedBuffer>();
 
@@ -106,7 +109,6 @@ void LoadMaterials(AssetManager& assets) {
         if (didLoad == false) {
             material.SetTextureDefinition(ID_BASE_MAP, "", 0); // default
         }
-
         GL_InitMaterialProperties(material, assets);
     }
 }
@@ -132,7 +134,6 @@ void LoadMeshes(AssetManager& assets) {
         assets.LoadDefinitions("upd_lamp.fbx", definitions);
         hMeshLamp = definitions[0].Meshes[0];
     }
-
     // std::vector<std::string> paths = {
     //     "upd_picnic table.fbx",
     //     "upd_lamp.fbx",
@@ -157,12 +158,13 @@ void LoadMeshes(AssetManager& assets) {
 }
 
 
-void AddNewCustomObject_SingleMesh(std::string&& name, AssetManager& assets, GameScene& scene,
+Handle AddNewCustomObject_SingleMesh(std::string&& name, GameScene& scene,
                     Handle hMesh, Handle hMaterial,
                     vec3 pos, vec3 rot, vec3 scale) {
 
     Handle hObject = scene.NewObject_SingleSubMesh(name.c_str(), hMesh, pos, rot, scale, hMaterial);
     scene.activeWorldHandles.push_back(hObject);
+    return hObject;
 }
 
 
@@ -174,7 +176,7 @@ void PlaceTrees(AssetManager& assets, GameScene& scene) {
         vec3 rot = {0.0f, 0.0f, 0.0f};
         const float sf = 0.01f;
         vec3 scale = {sf, sf, sf};
-        AddNewCustomObject_SingleMesh("Tree 1", assets, scene, hMeshTree, h_mat_Tree, pos, rot, scale);
+        AddNewCustomObject_SingleMesh("Tree 1", scene, hMeshTree, h_mat_Tree, pos, rot, scale);
     }
     // Tree 2
     {
@@ -182,7 +184,7 @@ void PlaceTrees(AssetManager& assets, GameScene& scene) {
         vec3 rot = {0.0f, 0.0f, 0.0f};
         const float sf = 0.01f;
         vec3 scale = {sf, sf, sf};
-        AddNewCustomObject_SingleMesh("Tree 2", assets, scene, hMeshTree, h_mat_Tree, pos, rot, scale);
+        AddNewCustomObject_SingleMesh("Tree 2", scene, hMeshTree, h_mat_Tree, pos, rot, scale);
     }
     // Tree 3
     {
@@ -190,9 +192,8 @@ void PlaceTrees(AssetManager& assets, GameScene& scene) {
         vec3 rot = {0.0f, 0.0f, 0.0f};
         const float sf = 0.01f;
         vec3 scale = {sf, sf, sf};
-        AddNewCustomObject_SingleMesh("Tree 3", assets, scene, hMeshTree, h_mat_Tree, pos, rot, scale);
+        AddNewCustomObject_SingleMesh("Tree 3", scene, hMeshTree, h_mat_Tree, pos, rot, scale);
     }
-
 }
 
 
@@ -262,8 +263,8 @@ void PlaceDefaultShapes(AssetManager& assets, GameScene& scene) {
         Handle objHandle = scene.NewObject_SingleSubMesh("donut", assets.meshDonut, pos, rot, scale, h_mat_Metal);
         scene.activeWorldHandles.push_back(objHandle);
     }
-
 }
+
 
 void PlaceCustomShapes(AssetManager& assets, GameScene& scene) {
     float posTableZ = 2;
@@ -274,39 +275,35 @@ void PlaceCustomShapes(AssetManager& assets, GameScene& scene) {
         vec3 pos = {-0.0f, 31.0f, 0.0f};
         vec3 rot = {-90.0f, 0.0f, 0.0f};
         vec3 scale = {0.0065f, 0.0065f, 0.0065f};
-        AddNewCustomObject_SingleMesh("Table 1", assets, scene, hMeshTable, h_mat_Table, pos, rot, scale);
+        AddNewCustomObject_SingleMesh("Table 1", scene, hMeshTable, h_mat_Table, pos, rot, scale);
     }
     // Table 2
     {
         vec3 pos = {3.5, 0.6f, posTableZ};
         vec3 rot = {-90.0f, 0.0f, 0.0f};
         vec3 scale = {0.0065f, 0.0065f, 0.0065f};
-        AddNewCustomObject_SingleMesh("Table 2", assets, scene, hMeshTable, h_mat_Table, pos, rot, scale);
+        AddNewCustomObject_SingleMesh("Table 2", scene, hMeshTable, h_mat_Table, pos, rot, scale);
     }
 
+    const float sf = 0.01f;
+    vec3 scale = {sf, sf, sf};
     // Lamp 1
     {
         vec3 pos = {-3.0, 3.0f, posLampsZ};
         vec3 rot = {0.0f, 0.0f, 0.0f};
-        const float sf = 0.01f;
-        vec3 scale = {sf, sf, sf};
-        AddNewCustomObject_SingleMesh("Lamp 1", assets, scene, hMeshLamp, h_mat_Metal, pos, rot, scale);
+        AddNewCustomObject_SingleMesh("Lamp_1", scene, hMeshLamp, h_mat_Metal, pos, rot, scale);
     }
     // Lamp 2
     {
         vec3 pos = {0.0, 3.0f, posLampsZ};
         vec3 rot = {0.0f, 0.0f, 0.0f};
-        const float sf = 0.01f;
-        vec3 scale = {sf, sf, sf};
-        AddNewCustomObject_SingleMesh("Lamp 2", assets, scene, hMeshLamp, h_mat_Metal, pos, rot, scale);
+        AddNewCustomObject_SingleMesh("Lamp_2", scene, hMeshLamp, h_mat_Metal, pos, rot, scale);
     }
     // Lamp 3
     {
         vec3 pos = {3.0, 3.0f, posLampsZ};
         vec3 rot = {0.0f, 0.0f, 0.0f};
-        const float sf = 0.01f;
-        vec3 scale = {sf, sf, sf};
-        AddNewCustomObject_SingleMesh("Lamp 3", assets, scene, hMeshLamp, h_mat_Metal, pos, rot, scale);
+        hTrackObj = AddNewCustomObject_SingleMesh("Lamp_3", scene, hMeshLamp, h_mat_Metal, pos, rot, scale);
     }
 }
 
@@ -323,7 +320,7 @@ void RebuildTerrain(AssetManager& assets, GameScene& scene) {
 
     UpdateTerrainYPos(scene);
     Terrain& terrain = scene.terrain;
-
+    terrain.LODS = 2;
 
     std::cout << "Octaves: " << terrain.heightData.octaves << std::endl;
     std::cout << "Size: (" << terrain.heightData.sizeX << ", " << terrain.heightData.sizeY << ")" << std::endl;
@@ -339,25 +336,42 @@ void RebuildTerrain(AssetManager& assets, GameScene& scene) {
     splatTexture.SetSplatMapData(terrain.terrainSplat);
     noiseTexture.UploadNewTextureToGL(false);
     splatTexture.UploadNewTextureToGL(false);
-
 }
+
+
+
+
+void PlaceObjectsToScene(AssetManager& assets, GameScene& scene) {
+    // //Floor
+    // {
+    //     vec3 pos = {0.0, -0.5f, 0.0f};
+    //     vec3 rot = {0.0f, 0.0f, 0.0f};
+    //     vec3 scale = {32.0f, 1.0f, 32.0f};
+    //     Handle objHandle = scene.NewObject_SingleSubMesh("FloorPlane", assets.meshCube, pos, rot, scale, h_mat_Floor);
+    //     scene.activeWorldHandles.push_back(objHandle);
+    // }
+    // PlaceDefaultShapes(assets, scene);
+    PlaceCustomShapes(assets, scene);
+}
+
 
 
 
 void BuildTerrain(AssetManager& assets, GameScene& scene) {
 
     Terrain& terrain = scene.terrain;
-    terrain.worldSize = 1024;
+    terrain.worldSize = NoiseSizeX;
+
     terrain.heightData.sizeX = NoiseSizeX;
-    terrain.heightData.sizeY = NoiseSizeY;
+    terrain.heightData.sizeY = NoiseSizeX;
     terrain.heightData.scale = TerrainHeightScale;
     terrain.heightData.octaves = TerrainNoiseOctaves;
     terrain.heightData.persistence = TerrainNoisePersistence;
     terrain.heightData.seed = TerrainSeed;
 
     terrain.terrainSplat.band1 = 0.1f;
-    terrain.terrainSplat.band2 = 0.3f;
-    terrain.terrainSplat.band3 = 0.5f;
+    terrain.terrainSplat.band2 = 0.25f;
+    terrain.terrainSplat.band3 = 0.48f;
     terrain.terrainSplat.band4 = 0.7f;
 
     NoiseGenerator::GeneratePerlin(terrain.heightData);
@@ -442,20 +456,6 @@ void ScriptTerrainGame::RegenTerrain() {
 }
 
 
-void PlaceObjectsToScene(AssetManager& assets, GameScene& scene) {
-    // //Floor
-    // {
-    //     vec3 pos = {0.0, -0.5f, 0.0f};
-    //     vec3 rot = {0.0f, 0.0f, 0.0f};
-    //     vec3 scale = {32.0f, 1.0f, 32.0f};
-    //     Handle objHandle = scene.NewObject_SingleSubMesh("FloorPlane", assets.meshCube, pos, rot, scale, h_mat_Floor);
-    //     scene.activeWorldHandles.push_back(objHandle);
-    // }
-    // PlaceDefaultShapes(assets, scene);
-    PlaceCustomShapes(assets, scene);
-}
-
-
 
 void PlaceCamera(GameScene& scene) {
     Transform& cameraTransform = scene.transforms.GetNewObjectAndHandle(scene.camera.transformHandle);
@@ -492,14 +492,16 @@ void ScriptTerrainGame::PlaceTreesOnTerrain(Terrain& terrain, Transform& terrain
     auto& buffer = *treesInstanceBuffer;
     auto size = buffer.entries.size();
 
-    vec3 terrainOriginPosition;
-    terrain.GetVertexOriginPosition(terrainTransform.position, terrainOriginPosition);
-    f32 yOffset = terrainTransform.position[1];
-    for (auto i = 0; i < size; i++) {
+    vec3 terrainOriginPosition = {0.0f, 0.0f, 0.0f};
+    // terrain.GetVertexOriginPosition(terrainTransform.position, terrainOriginPosition);
+    f32 yOffset = terrainOriginPosition[1];
+    for (size_t i = 0; i < size; i++) {
         vec3 position;
         glm_vec3_copy(buffer.entries[i].modelMatrix[3], position);
         glm_vec3_sub(position, terrainOriginPosition, position);
-        buffer.entries[i].modelMatrix[3][1] = terrain.GetHeightAt(position[0], position[2]) + yOffset;
+        position[1] = terrain.GetHeightAt(position[0], position[2]) + yOffset;
+        buffer.entries[i].modelMatrix[3][1] = position[1];
+        // printf("Position tree (%d), Pos: %f, %f, %f \n", i, position[0], position[1], position[2]);
     }
     std::cout << std::endl<< std::endl<< std::endl;
     buffer.isDirty = true;
@@ -513,10 +515,12 @@ void ScriptTerrainGame::InitTreesInstanceBuffer() {
     auto& terrainTransform = engine.scene.transforms.GetItemRef(engine.scene.terrain.hTransform);
 
     const i32 count = 900;
-    const i32 entriesPerRow = 90;
-    const f32 spacing = 12.0f;
-    f32 startX = -1.0f * entriesPerRow * .5f * spacing;
-    f32 startY = -1.0f * entriesPerRow * .5f * spacing;
+    const i32 entriesPerRow = 30;
+    const f32 spacing = 8.0f;
+    const i32 sizeZ = count / entriesPerRow;
+
+    f32 startX = -1.0f * 0.5f * entriesPerRow  * spacing;
+    f32 startZ = -1.0f * 0.5f * sizeZ  * spacing;
 
     auto& buffer = *treesInstanceBuffer;
     buffer.name = "Trees";
@@ -527,8 +531,6 @@ void ScriptTerrainGame::InitTreesInstanceBuffer() {
 
     vec3 terrainOriginPosition;
     terrain.GetVertexOriginPosition(terrainTransform.position, terrainOriginPosition);
-
-    f32 yOffset = terrainTransform.position[1];
     for (size_t i = 0; i < count; i++) {
         i32 x = i % entriesPerRow;
         i32 z = (i / entriesPerRow);
@@ -536,19 +538,13 @@ void ScriptTerrainGame::InitTreesInstanceBuffer() {
         vec3 position = {
             startX + x * spacing,
             0,
-            startY + z * spacing};
-
-        vec3 relativePos;
-        glm_vec3_sub(position, terrainOriginPosition, relativePos);
-        position[1] = terrain.GetHeightAt(relativePos[0], relativePos[2]) + yOffset;
-
+            startZ + z * spacing};
         versor rotation = {0.0f, 0.0f, 0.0f, 1.0f};
         vec3 scale = {1., 1., 1.};
-
         glm_vec3_scale(scale, 0.01f, scale);
-
         Transform_UpdateMatrixOnly(buffer.entries[i].modelMatrix, position, rotation, scale);
     }
+    PlaceTreesOnTerrain(terrain, terrainTransform);
     GL_AddInstanceBuffer(treesInstanceBuffer);
 }
 
@@ -559,18 +555,18 @@ void InitNoiseDebugUI(Engine& engine) {
     UIObject& obj = engine.scene.uiObjectsPool.GetNewObjectAndHandle(h_objUIQuad);
     Material& uiMat = engine.assetManager.materials.GetNewObjectAndHandle(h_matUI);
     uiMat.shaderName = "UIQuad";
-    uiMat.vectorsDefinitions.clear();
-    uiMat.floatsDefinitions.clear();
-    uiMat.texturesDefinitions.clear();
-    obj.hMaterial = h_matUI;
+    GL_InitMaterialProperties(uiMat, engine.assetManager);
+
+    auto& shader = engine.assetManager.shaders.GetItemRef(uiMat.shaderHandle);
+    i32 uniformId = shader.GetUniformLocation("mainTex");
 
     SET_VEC2(obj.position, 10, 10);
-    SET_VEC2(obj.size, 200, 200);
+    SET_VEC2(obj.size, 160, 160);
+    obj.hMaterial = h_matUI;
+    uiMat.SetTextureData(uniformId, engine.scene.terrain.hNoiseTex, 0);
+
     GL_AllocateGUIQuad(obj);
     engine.scene.activeUIHandles.push_back(h_objUIQuad);
-
-    uiMat.SetTextureDefinition(ID_MAIN_TEXTURE, splatMapTexName, 0);
-    GL_InitMaterialProperties(uiMat, engine.assetManager);
 }
 
 
@@ -598,11 +594,46 @@ void ScriptTerrainGame::GamePause() {
 }
 void ScriptTerrainGame::GameResume() {
 }
+
 void ScriptTerrainGame::Quit() {
 }
 void ScriptTerrainGame::PhysicsUpdate(f32 deltaTime) {
 }
+
+
+static void UpdateSlidingTerrain() {
+    auto& engine = *Engine::GetInstance();
+    auto& cam = engine.scene.GetCameraTransform();
+    auto& terrain = engine.scene.terrain;
+    if (terrain.isBuilt && terrain.heightData.isGenerated) {
+        NoiseGenerator::GenerateAdditionalPerlin(terrain.heightData, textureOffsetX, textureOffsetY);
+
+        if (terrain.heightData.updated) {
+            terrain.heightData.updated = false;
+            auto& tex = engine.assetManager.textures.GetItemRef(terrain.hNoiseTex);
+            tex.SetHeightMapData(terrain.heightData);
+            tex.ReuploadTextureToGL(false);
+        }
+    }
+}
+
 void ScriptTerrainGame::Update(f32 deltaTime) {
+
+    auto& engine = *Engine::GetInstance();
+    // auto& cam = engine.scene.GetCameraTransform();
+    // auto& transform = engine.scene.GetTransformForObject(hTrackObj);
+    // vec3 frw;
+    // Transform_GetFrw(cam, frw);
+    // frw[1] = 0;
+    // glm_vec3_scale(frw, 10, frw);
+    // glm_vec3_copy(cam.position, transform.position);
+    // glm_vec3_add(transform.position, frw, transform.position);
+    // transform.position[1] = engine.scene.terrain.GetHeightAt(transform.position[0], transform.position[2]);
+    // Transform_UpdateMatrices(transform);
+    if (engine.runningTime < 5) {
+        return;
+    }
+    UpdateSlidingTerrain();
 }
 
 
@@ -631,9 +662,16 @@ void ScriptTerrainGame::GUIUpdate(f32 deltaTime) {
     ImGui::Spacing();
 
     ImGui::SliderInt("LODs count",  &terrain.LODS, 0, 10.0);
-    ImGui::SliderInt("Offset X",  &terrain.textOffsetX, -12.0, 12.0);
-    ImGui::SliderInt("Offset Z",  &terrain.textOffsetZ, -12.0, 12.0);
+    ImGui::SliderInt("Offset X",  &terrain.testOffsetX, -12.0, 12.0);
+    ImGui::SliderInt("Offset Z",  &terrain.testOffsetZ, -12.0, 12.0);
     ImGui::Checkbox( "Debug snapping",  &terrain.debugSnapping);
+
+    ImGui::SliderFloat("textureOffset X",  &textureOffsetX, -500.0, 500.0);
+    ImGui::SliderFloat("textureOffset Y",  &textureOffsetY, -500.0, 500.0);
+
+
+    terrain.testViewPositionX = textureOffsetX;
+    terrain.testViewPositionZ = textureOffsetY;
 
     // Button returns true exactly on the frame it is clicked
     if (ImGui::Button("Generate Terrain", ImVec2(150, 30))) {

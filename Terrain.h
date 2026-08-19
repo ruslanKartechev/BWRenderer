@@ -14,6 +14,8 @@ struct ClipmapMesh {
     i32 vertexDataCount = 0;
     i32 indexCount = 0;
     i32 stride = 5;
+    i32 sizeX = 0; // Size in world units
+    i32 sizeZ = 0; // Size in world units
 };
 
 
@@ -38,9 +40,15 @@ public:
     ClipmapMesh centerMesh = {};
     ClipmapMesh blockMesh = {};
     ClipmapMesh fixUpXMesh = {};
-    ClipmapMesh fixUpYMesh = {};
+    ClipmapMesh fixUpZMesh = {};
     ClipmapMesh trimXMesh = {};
-    ClipmapMesh trimYMesh = {};
+    ClipmapMesh trimZMesh = {};
+
+    ClipmapMesh zeroAreaX1 = {};
+    ClipmapMesh zeroAreaX2 = {};
+    ClipmapMesh zeroAreaZ1 = {};
+    ClipmapMesh zeroAreaZ2 = {};
+
 
     f32 worldSize = 256.0f;
 
@@ -52,8 +60,11 @@ public:
     // Fix-up block width in units
     f32 Gap = 2.0f;
 
-    i32 textOffsetX = 0;
-    i32 textOffsetZ = 0;
+    i32 testOffsetX = 0;
+    i32 testOffsetZ = 0;
+
+    f32 testViewPositionX = 0;
+    f32 testViewPositionZ = 0;
 
     bool isBuilt;
     bool debugSnapping;
@@ -66,7 +77,8 @@ public:
 
 private:
 
-    static void GenerateGridNoUV(ClipmapMesh& mesh, int verticesX, int verticesZ);
+    static void GenerateGridNoUV(ClipmapMesh& mesh, int verticesX, int verticesZ, float stepX = 1, float stepZ = 1);
+    static void GenerateStrip(ClipmapMesh& mesh, int length,float stepX, float stepZ, bool reversTriangles);
     void GenerateSingleGrid();
 
 };

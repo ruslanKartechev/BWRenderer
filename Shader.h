@@ -23,18 +23,21 @@ public:
 
     static i32 ReadAndCompile(u32& newId, const std::string& m_vertexPath, const std::string& m_fragmentPath);
 
-    [[nodiscard]] std::string& GetName();
-
-    [[nodiscard]] std::string& GetVertexPath();
-
-    [[nodiscard]] std::string& GetFragmentPath();
-
     // Activate the shader program
     void Use() const;
 
     int Recompile();
 
     int LoadAndCompile();
+
+    [[nodiscard]] i32 GetUniformLocation(const char* name);
+
+    [[nodiscard]] std::string& GetName();
+
+    [[nodiscard]] std::string& GetVertexPath();
+
+    [[nodiscard]] std::string& GetFragmentPath();
+
 
 
     [[nodiscard]] u32 GetShaderId() const;

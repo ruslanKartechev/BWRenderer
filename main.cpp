@@ -351,6 +351,7 @@ void EndFrame() {
     SwapBuffers(mainWin.dc);
     EnginePtr->shaderWatcher.ProcessReloads();
     EnginePtr->gui.EndFrame();
+    EnginePtr->runningTime += Time_Dt();
 }
 
 
@@ -501,7 +502,7 @@ void StartScripts() {
 }
 
 void ScriptsUpdate() {
-    f32 dt = Time_GetDelta();
+    f32 dt = Time_Dt();
     for (auto& script : EnginePtr->scripts) {
         script.Update(script.objectPtr, dt);
     }

@@ -49,5 +49,6 @@ public:
     void SetFloatDefinition(const std::string& name, float value);
     void SetVectorDefinition(const std::string& name, vector4 value);
     void SetTextureDefinition(const std::string& name, std::string value, i32 binding);
+    void SetTextureData(ShaderUniformLocation uniformLoc, Handle textureHandle, i32 layoutIndex);
 
 };

@@ -50,7 +50,7 @@ void MyGui::StartFrame() {
     }
     // std::cout << "GUI --- StartFrame" << std::endl;
     ImGuiIO& io = ImGui::GetIO();
-    io.DeltaTime = static_cast<f32>(Time_GetDelta());
+    io.DeltaTime = static_cast<f32>(Time_Dt());
     io.DisplaySize = ImVec2(static_cast<f32>(windowPtr->width), static_cast<f32>(windowPtr->height));
 
     ImGui_ImplOpenGL3_NewFrame();
@@ -98,17 +98,10 @@ void MyGui::UpdateInputs() {
 
 
 void MyGui::RenderFrame() {
-
     if (!initialized) {
         return;
     }
 
-    if (demoOpen) {
-
-        ImGui::ShowDemoWindow(&demoOpen);
-    }
-
     ImGui::Render();
     ImGui_ImplOpenGL3_RenderDrawData(ImGui::GetDrawData());
-
 }

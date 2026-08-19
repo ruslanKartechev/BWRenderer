@@ -40,4 +40,5 @@ public:
      */
     ObjectHandle NewObject_SingleSubMesh(const char* name, MeshHandle hMesh, vec3 position, vec3 rotation, vec3 scale, ShaderHandle shaderHandle);
 
+    Transform& GetCameraTransform();
 };

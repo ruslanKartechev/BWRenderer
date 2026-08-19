@@ -12,7 +12,7 @@ u32 Time_GetFrameCountInt();
 f64 Time_GetTotal();
 
 /// @return  Delta Time between frames in Seconds
-f64 Time_GetDelta();
+f64 Time_Dt();
 
 void Time_Update();
 

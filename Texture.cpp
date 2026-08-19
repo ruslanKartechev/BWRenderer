@@ -55,12 +55,14 @@ bool Texture::ReuploadTextureToGL(bool freeResource) {
     switch (pixelFormat) {
         case Texture::TEX_FORMAT_R32:
             glPixelStorei(GL_UNPACK_ALIGNMENT, 4);
-            glTexSubImage2D(GL_TEXTURE_2D, 0, GL_R32F, width, height, 0, GL_RED, GL_FLOAT, pixelsFloatPtr);
+            // Replaced GL_R32F with xoffset=0, yoffset=0
+            glTexSubImage2D(GL_TEXTURE_2D, 0, 0, 0, width, height, GL_RED, GL_FLOAT, pixelsFloatPtr);
             break;
         case Texture::TEX_FORMAT_sRGB32:
             glPixelStorei(GL_UNPACK_ALIGNMENT, 4);
-            glTexSubImage2D(GL_TEXTURE_2D, 0, GL_RGBA, width, height, 0, GL_RGBA, GL_UNSIGNED_BYTE, pixelsBytePtr);
-            glGenerateMipmap(GL_TEXTURE_2D);
+            // Replaced GL_RGBA with xoffset=0, yoffset=0
+            glTexSubImage2D(GL_TEXTURE_2D, 0, 0, 0, width, height, GL_RGBA, GL_UNSIGNED_BYTE, pixelsBytePtr);
+            glGenerateMipmap(GL_TEXTURE_2D); //[cite: 6]
             break;
     }
 
@@ -142,7 +144,7 @@ void Texture::SetHeightMapData(NoiseData& data) {
     SetPixelFormat(Texture::TEX_FORMAT_R32);
     SetSize(data.sizeX, data.sizeY);
     SetChannelCount(1);
-    SetFloatDataPtr(data.dataPtr);
+    SetFloatDataPtr(data.dataPtr.data());
 }
 
 void Texture::SetSplatMapData(SplatMapData& data) {

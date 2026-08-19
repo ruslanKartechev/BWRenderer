@@ -31,3 +31,13 @@ void Material::SetTextureDefinition(const std::string& name, std::string value, 
     }
     texturesDefinitions.emplace_back(name, NameBindingPair{value, binding});
 }
+
+
+
+void Material::SetTextureData(ShaderUniformLocation uniformLoc, Handle textureHandle, i32 layoutIndex) {
+    auto& data = textures.emplace_back();
+    data.first = uniformLoc;
+    data.second.texHandle = textureHandle;
+    data.second.layoutIndex = layoutIndex;
+}
+
