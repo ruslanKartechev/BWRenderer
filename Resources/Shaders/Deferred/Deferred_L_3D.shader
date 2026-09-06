@@ -1,7 +1,23 @@
 #version 450 core
 
-layout(location = 0) out vec4 FragColor;
 
+#section Vertex
+
+layout(location = 0) in vec2 pos;
+layout(location = 1) in vec2 uv;
+out vec2 v_uv;
+
+void main(){
+    gl_Position = vec4(pos.x, pos.y, 0.0, 1.0);
+    v_uv = uv;
+}
+
+#endsection
+
+
+#section Fragment
+
+layout(location = 0) out vec4 FragColor;
 layout(binding = 0) uniform sampler2D u_gAlbedoSmoothness;
 layout(binding = 1) uniform sampler2D u_gNormal;
 layout(binding = 2) uniform sampler2D u_gDepth;
@@ -60,10 +76,7 @@ void main(){
     vec3 outcolor = diffuseLight + specularColor + environmentSpecular;
     FragColor = vec4(outcolor,  1.0);
 }
-
-
-
-
+#endsection
 
 
 

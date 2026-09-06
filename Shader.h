@@ -7,6 +7,16 @@
 
 class Shader {
 public:
+    static const i32 COMPILE_CODE_SUCCESS = 0;
+    static const i32 COMPILE_CODE_ERROR = 1;
+    static const i32 COMPILE_CODE_END_SECTION_NOT_FOUND = 2;
+    static const i32 COMPILE_CODE_NOT_FOUND_VERTEX = 3;
+    static const i32 COMPILE_CODE_NOT_FOUND_FRAGMENT = 4;
+    static const i32 COMPILE_CODE_NOT_FOUND_VERSION_DIGITS = 5;
+
+    static const i32 COMPILE_CODE_FAILED_TO_READ_VERTEX = 10;
+    static const i32 COMPILE_CODE_FAILED_TO_READ_FRAGMENT = 11;
+
     Shader();
 
     Shader(const char* shaderName);
@@ -17,18 +27,20 @@ public:
     ~Shader();
 
     void SetName(const char* shaderName, bool pathFromName = true);
-    void SetNameSeparate(const char* shaderName, const char* vertex, const char* fragment);
+    void SetNameAndPathSeparate(const char* shaderName, const char* vertex, const char* fragment);
+    void SetNameAndPath(const char* shaderName, const char* path);
 
     static void GetVertexFragmentPath(const char* shaderName, std::string& out_vertexPath, std::string& out_fragmentPath);
 
-    static i32 ReadAndCompile(u32& newId, const std::string& m_vertexPath, const std::string& m_fragmentPath);
 
     // Activate the shader program
     void Use() const;
 
     int Recompile();
 
-    int LoadAndCompile();
+    int CompileRawGLSL();
+
+    int CompileCustomShader();
 
     [[nodiscard]] i32 GetUniformLocation(const char* name);
 
@@ -62,8 +74,13 @@ private:
     // Helper function to check compilation/linking errors
     static bool CheckCompileErrors(unsigned int shaderID, int type);
 
+    static int ParseShaderToGLSL(std::string& out_vert, std::string& out_frag, const std::string fileContent);
+
+    static i32 CompileGLSLCode(u32& newId, const std::string& m_vertexPath, const std::string& m_fragmentPath);
+
+
     std::string m_name;
-    std::string m_vertexPath;
+    std::string m_mainPath;
     std::string m_fragmentPath;
     bool m_isCompiled;
     bool m_hasErrors;

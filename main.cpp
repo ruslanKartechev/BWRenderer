@@ -96,42 +96,32 @@ void LoadShadersDeferred(Engine& engine) {
     Shader& uiQuad = assets.shaders.GetNewObjectAndHandle(assets.uiQuad);
 
     // Assign names
-    default3DG.SetNameSeparate(Shader_DefaultDeferredG, "Deferred/Deferred_G_3D", "Deferred/Deferred_G_3D");
-    default3DL.SetNameSeparate(Shader_DefaultDeferredL, "ScreenRenderTexture", "Deferred/Deferred_L_3D");
-    skybox.SetNameSeparate(Shader_SkyboxDefault, "Deferred/Skybox", "Deferred/Skybox");
+    default3DG.SetNameAndPath(Shader_DefaultDeferredG, "Deferred/Deferred_G_3D.shader");
+    default3DL.SetNameAndPath(Shader_DefaultDeferredL, "Deferred/Deferred_L_3D.shader");
+    skybox.SetNameAndPath(Shader_SkyboxDefault, "Deferred/Skybox.shader");
 
-    renderTexture.SetName(Shader_ScreenRender);
-    ssrShader.SetNameSeparate("SSR", "ScreenRenderTexture", "PostProcess/SSR");
-    bloomDown1.SetNameSeparate("BloomDownsampleFirstPass", "ScreenRenderTexture", "PostProcess/BloomDownsampleFirstPass");
-    bloomDown2.SetNameSeparate("BloomDownsample", "ScreenRenderTexture", "PostProcess/BloomDownsample");
-    bloomUp.SetNameSeparate("BloomUpsample", "ScreenRenderTexture", "PostProcess/BloomUpsample");
-    bloomComposite.SetNameSeparate("BloomComposition", "ScreenRenderTexture", "PostProcess/BloomComposite");
-    terrain.SetNameSeparate("Terrain", "Deferred/Terrain_G", "Deferred/Terrain_G");
-    uiQuad.SetName("UIQuad");
+    renderTexture.SetNameAndPath("ScreenRenderTexture", "ScreenRenderTexture.shader");
+    ssrShader.SetNameAndPath("SSR", "PostProcess/SSR.shader");
+    bloomDown1.SetNameAndPath("BloomDownsampleFirstPass", "PostProcess/BloomDownsampleFirstPass.shader");
+    bloomDown2.SetNameAndPath("BloomDownsample", "PostProcess/BloomDownsample.shader");
+    bloomUp.SetNameAndPath("BloomUpsample", "PostProcess/BloomUpsample.shader");
+    bloomComposite.SetNameAndPath("BloomComposition", "PostProcess/BloomComposite.shader");
+    terrain.SetNameAndPath("Terrain", "Deferred/Terrain_G.shader");
+    uiQuad.SetNameAndPath("UIQuad", "UIQuad.shader");
 
     bool allCompiled = true;
-    allCompiled |= default3DG.LoadAndCompile() == 0;
-    allCompiled |= default3DL.LoadAndCompile() == 0;
-    allCompiled |= skybox.LoadAndCompile() == 0;
+    allCompiled |= default3DG.CompileCustomShader() == 0;
+    allCompiled |= default3DL.CompileCustomShader() == 0;
+    allCompiled |= skybox.CompileCustomShader() == 0;
 
-    allCompiled |= renderTexture.LoadAndCompile() == 0;
-    allCompiled |= ssrShader.LoadAndCompile() == 0;
-    allCompiled |= bloomDown1.LoadAndCompile() == 0;
-    allCompiled |= bloomDown2.LoadAndCompile() == 0;
-    allCompiled |= bloomUp.LoadAndCompile() == 0;
-    allCompiled |= bloomComposite.LoadAndCompile() == 0;
-    allCompiled |= terrain.LoadAndCompile() == 0;
-    allCompiled |= uiQuad.LoadAndCompile() == 0;
-
-
-#define LOG_DEFAULT_SHADER_COMP
-#ifdef LOG_DEFAULT_SHADER_COMP
-    std::cout << "[shader] compiled default3DG " << default3DG.GetName() << " " << default3DG.GetShaderId() << std::endl;
-    std::cout << "[shader] compiled default3DL " << default3DL.GetName() << " " << default3DL.GetShaderId() << std::endl;
-    std::cout << "[shader] compiled skybox " << skybox.GetName() << " " << skybox.GetShaderId() << std::endl;
-    std::cout << "[shader] compiled terrain " << terrain.GetName() << " " << terrain.GetShaderId() << std::endl;
-    std::cout << "[shader] compiled uiQuad " << uiQuad.GetName() << " " << uiQuad.GetShaderId() << std::endl;
-#endif
+    allCompiled |= renderTexture.CompileCustomShader() == 0;
+    allCompiled |= ssrShader.CompileCustomShader() == 0;
+    allCompiled |= bloomDown1.CompileCustomShader() == 0;
+    allCompiled |= bloomDown2.CompileCustomShader() == 0;
+    allCompiled |= bloomUp.CompileCustomShader() == 0;
+    allCompiled |= bloomComposite.CompileCustomShader() == 0;
+    allCompiled |= terrain.CompileCustomShader() == 0;
+    allCompiled |= uiQuad.CompileCustomShader() == 0;
 
     assert(allCompiled);
 
@@ -151,16 +141,15 @@ void LoadShadersDeferred(Engine& engine) {
     // Additional Shaders
     {
         Handle h {};
-        Shader& treeGeom = assets.shaders.GetNewObjectAndHandle(h);
-        treeGeom.SetNameSeparate("Tree", "Deferred/Tree", "Deferred/TreeG");
-        treeGeom.LoadAndCompile();
-        engine.shaderWatcher.WatchShader(treeGeom);
-
+        Shader& treeShader = assets.shaders.GetNewObjectAndHandle(h);
+        treeShader.SetNameAndPath("Tree", "Deferred/Tree.shader");
+        treeShader.CompileCustomShader();
+        engine.shaderWatcher.WatchShader(treeShader);
     }
 }
 
 
-void LoadShaders(Engine& engine) {
+void LoadShadersForward(Engine& engine) {
 
     auto& assets = engine.assetManager;
 
@@ -188,34 +177,34 @@ void LoadShaders(Engine& engine) {
     defaultSkybox.SetName(Shader_SkyboxDefault);
 
     renderTexture.SetName(Shader_ScreenRender);
-    ssrShader.SetNameSeparate("SSR", "ScreenRenderTexture", "PostProcess/SSR");
-    bloomDown1.SetNameSeparate("BloomDownsampleFirstPass", "ScreenRenderTexture", "PostProcess/BloomDownsampleFirstPass");
-    bloomDown2.SetNameSeparate("BloomDownsample", "ScreenRenderTexture", "PostProcess/BloomDownsample");
-    bloomUp.SetNameSeparate("BloomUpsample", "ScreenRenderTexture", "PostProcess/BloomUpsample");
-    bloomComposite.SetNameSeparate("BloomComposition", "ScreenRenderTexture", "PostProcess/BloomComposite");
+    ssrShader.SetNameAndPathSeparate("SSR", "ScreenRenderTexture", "PostProcess/SSR");
+    bloomDown1.SetNameAndPathSeparate("BloomDownsampleFirstPass", "ScreenRenderTexture", "PostProcess/BloomDownsampleFirstPass");
+    bloomDown2.SetNameAndPathSeparate("BloomDownsample", "ScreenRenderTexture", "PostProcess/BloomDownsample");
+    bloomUp.SetNameAndPathSeparate("BloomUpsample", "ScreenRenderTexture", "PostProcess/BloomUpsample");
+    bloomComposite.SetNameAndPathSeparate("BloomComposition", "ScreenRenderTexture", "PostProcess/BloomComposite");
 
-    depthOnly.SetNameSeparate("DepthOnly", "ScreenRenderTexture", "Dev/DepthOnly");
-    normalsOnly.SetNameSeparate("NormalsOnly", "ScreenRenderTexture", "Dev/DepthOnly");
-    colorOnly.SetNameSeparate("ColorsOnly", "ScreenRenderTexture", "Dev/DepthOnly");
+    depthOnly.SetNameAndPathSeparate("DepthOnly", "ScreenRenderTexture", "Dev/DepthOnly");
+    normalsOnly.SetNameAndPathSeparate("NormalsOnly", "ScreenRenderTexture", "Dev/DepthOnly");
+    colorOnly.SetNameAndPathSeparate("ColorsOnly", "ScreenRenderTexture", "Dev/DepthOnly");
 
     bool allCompiled = true;
     // Actually compile them
-    allCompiled |= default3D.LoadAndCompile() == 0;
+    allCompiled |= default3D.CompileRawGLSL() == 0;
 
-    allCompiled |= default2D.LoadAndCompile() == 0;
-    allCompiled |= debugShader.LoadAndCompile() == 0;
-    allCompiled |= defaultSkybox.LoadAndCompile() == 0;
+    allCompiled |= default2D.CompileRawGLSL() == 0;
+    allCompiled |= debugShader.CompileRawGLSL() == 0;
+    allCompiled |= defaultSkybox.CompileRawGLSL() == 0;
 
-    allCompiled |= renderTexture.LoadAndCompile() == 0;
-    allCompiled |= ssrShader.LoadAndCompile() == 0;
-    allCompiled |= bloomDown1.LoadAndCompile() == 0;
-    allCompiled |= bloomDown2.LoadAndCompile() == 0;
-    allCompiled |= bloomUp.LoadAndCompile() == 0;
-    allCompiled |= bloomComposite.LoadAndCompile() == 0;
+    allCompiled |= renderTexture.CompileRawGLSL() == 0;
+    allCompiled |= ssrShader.CompileRawGLSL() == 0;
+    allCompiled |= bloomDown1.CompileRawGLSL() == 0;
+    allCompiled |= bloomDown2.CompileRawGLSL() == 0;
+    allCompiled |= bloomUp.CompileRawGLSL() == 0;
+    allCompiled |= bloomComposite.CompileRawGLSL() == 0;
 
-    allCompiled |= depthOnly.LoadAndCompile() == 0;
-    allCompiled |= normalsOnly.LoadAndCompile() == 0;
-    allCompiled |= colorOnly.LoadAndCompile() == 0;
+    allCompiled |= depthOnly.CompileRawGLSL() == 0;
+    allCompiled |= normalsOnly.CompileRawGLSL() == 0;
+    allCompiled |= colorOnly.CompileRawGLSL() == 0;
 
 #ifdef LOG_DEFAULT_SHADER_COMP
 
@@ -250,7 +239,7 @@ void LoadShaders(Engine& engine) {
         Handle h {};
         Shader& treeShader = assets.shaders.GetNewObjectAndHandle(h);
         treeShader.SetName("Tree");
-        treeShader.LoadAndCompile();
+        treeShader.CompileRawGLSL();
         treeShader.SetAcceptsLighting(true);
         engine.shaderWatcher.WatchShader(treeShader);
     }
@@ -433,14 +422,14 @@ void InitDefaults() {
 
 
 
-void MakeConsole() {
+void AttachNativeConsole() {
     if (AllocConsole()) {
         FILE* fpOut;
         freopen_s(&fpOut, "CONOUT$", "w", stdout);
         FILE* fpErr;
         freopen_s(&fpErr, "CONOUT$", "w", stderr);
         std::ios::sync_with_stdio(true);
-        SetConsoleTitle(TEXT("Console Output Window"));
+        SetConsoleTitle(TEXT("Renderer Console"));
     }
     else {
         printf("Failed to allocate console");
@@ -449,7 +438,6 @@ void MakeConsole() {
 
 
 bool CreateMainWindow(ProgramWindow& window, HINSTANCE hInstance) {
-    MakeConsole();
     FetchProjectPath(ProjectSettings::RootPath, ProjectSettings::ResourcesPath);
 
     window.name = "Renderer Window";
@@ -549,7 +537,66 @@ void MainLoop() {
 
 
 
+void TestShaderCompile() {
+    FetchProjectPath(ProjectSettings::RootPath, ProjectSettings::ResourcesPath);
+    Shader shader;
+    shader.SetNameAndPath("Skybox", "Deferred/Skybox.shader");
+    i32 code = shader.CompileCustomShader();
+    if (code != 0) {
+        std::cerr << "ERROR FOUND ERROR FOUND " << code << std::endl;
+    }
+
+    shader.SetNameAndPath(Shader_DefaultDeferredG, "Deferred/Deferred_G_3D.shader");
+    code = shader.CompileCustomShader();
+    std::cout<< "Shader Result: " << code << std::endl;
+    shader.SetNameAndPath(Shader_DefaultDeferredL, "Deferred/Deferred_L_3D.shader");
+    code = shader.CompileCustomShader();
+    std::cout<< "Shader Result: " << code << std::endl;
+    shader.SetNameAndPath(Shader_SkyboxDefault, "Deferred/Skybox.shader");
+    code = shader.CompileCustomShader();
+    std::cout<< "Shader Result: " << code << std::endl;
+
+    std::cout<< "Shader Result: " << code << std::endl;
+    shader.SetNameAndPath("SSR", "PostProcess/SSR.shader");
+    code = shader.CompileCustomShader();
+    std::cout<< "Shader Result: " << code << std::endl;
+    shader.SetNameAndPath("BloomDownsampleFirstPass", "PostProcess/BloomDownsampleFirstPass.shader");
+    code = shader.CompileCustomShader();
+    std::cout<< "Shader Result: " << code << std::endl;
+    shader.SetNameAndPath("BloomDownsample", "PostProcess/BloomDownsample.shader");
+    code = shader.CompileCustomShader();
+    std::cout<< "Shader Result: " << code << std::endl;
+    shader.SetNameAndPath("BloomUpsample", "PostProcess/BloomUpsample.shader");
+    code = shader.CompileCustomShader();
+    std::cout<< "Shader Result: " << code << std::endl;
+    shader.SetNameAndPath("BloomComposition", "PostProcess/BloomComposite.shader");
+    code = shader.CompileCustomShader();
+    std::cout<< "Shader Result: " << code << std::endl;
+    shader.SetNameAndPath("Terrain", "Deferred/Terrain_G.shader");
+    code = shader.CompileCustomShader();
+    std::cout<< "Shader Result: " << code << std::endl;
+    shader.SetNameAndPath("UIQuad", "UIQuad.shader");
+    code = shader.CompileCustomShader();
+    std::cout<< "Shader Result: " << code << std::endl;
+
+    if (code == Shader::COMPILE_CODE_SUCCESS) {
+        std::cout << std::endl;
+        std::cout << std::endl;
+        std::cout << std::endl;
+        while (1) {
+            char inp;
+            std::cin >> inp;
+        }
+        //u32 newId = 0;
+        //CompileGLSLCode(newId, vert, frag);
+        //this->m_ShaderID = newId;
+    }
+
+}
+
 int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE prevInstance, LPSTR lpCmdLine, int nShowCmd) {
+    AttachNativeConsole();
+    // TestShaderCompile();
 
     bool didCreate = CreateMainWindow(mainWin, hInstance);
     if (!didCreate) {

@@ -1,11 +1,11 @@
 #version 450 core
 
+#section Vertex
 layout (location = 0) in vec2 position;
 
 out vec4 out_vertColor;
 out vec2 v_uv;
 out vec3 out_normal;
-//out mat3 out_TBN;
 out vec3 FragPos;
 
 layout (binding = 0) uniform sampler2D _HEIGHT_MAP;
@@ -54,16 +54,12 @@ float CalculateHeight(float hRaw, float offset){
 }
 
 
-
 void main(){
     vec2 halfSize = _SIZE.xy * 0.5;
     float hScale = _SIZE.z;
     float downOffset = pow(0.5 * hScale, HeightPower);
-
     vec3 flatPos = (MATRIX_MODEL * vec4(position.x, 0.0, position.y, 1.0)).xyz;
     v_uv = (flatPos.xz + halfSize) / _SIZE.xy;
-    // v_uv = fract(v_uv);
-    // Calculate Alpha Morph factor based on continuous camera distance
     vec2 d = abs(flatPos.xz - _CAMERA_POSITION) / _LOD_SCALE;
     float dMax = max(d.x, d.y);
     float alpha = clamp((dMax - 24.0) / 6.0, 0.0, 1.0);
@@ -71,26 +67,19 @@ void main(){
     float hCoarsed = SampleCoarseHeight(flatPos.xz);
     float hBlendedRaw = mix(hRaw, hCoarsed, alpha);
     float h = CalculateHeight(hRaw, downOffset);
-
     if (_IS_SKIRT > 0.5) {
         float isBottom = mod(float(gl_VertexID), 2.0);
         float hCoarseFinal = CalculateHeight(hCoarsed, downOffset);
         float epsilonDrop = 0.01 * _LOD_SCALE;
         h = mix(h, hCoarseFinal, isBottom);
     }
-
     vec4 localPos = vec4(position.x, h, position.y, 1.0);
     FragPos = (MATRIX_MODEL * localPos).xyz;
     gl_Position = (MATRIX_PROJECTION * MATRIX_VIEW * MATRIX_MODEL) * localPos;
-
-    // Step by _LOD_SCALE
     vec2 right = flatPos.xz + vec2(_LOD_SCALE, 0.0);
     vec2 frw = flatPos.xz + vec2(0.0, _LOD_SCALE);
     float hRightRaw = mix(GetWorldPosHeight(right), SampleCoarseHeight(right), alpha);
     float hFrwRaw = mix(GetWorldPosHeight(frw), SampleCoarseHeight(frw), alpha);
-//    float hRightRaw = GetWorldPosHeight(right);
-//    float hFrwRaw = GetWorldPosHeight(frw);
-
     float hRight = CalculateHeight(hRightRaw, downOffset);
     float hUp    = CalculateHeight(hFrwRaw, downOffset);
     vec3 worldTangent   = normalize(vec3(_LOD_SCALE, hRight - h, 0.0));
@@ -99,3 +88,60 @@ void main(){
     out_normal = worldNormal;
     out_vertColor = vec4(_COLOR_TINT.xyz, 1.0);
 }
+#endsection
+
+
+
+#section Fragment
+#define DEBUG_COLORS__
+
+layout(location = 0) out vec4 gAlbedoSmoothness;
+layout(location = 1) out vec4 gNormal;
+
+layout(binding = 1) uniform sampler2D _SPLAT_MAP;
+layout(binding = 2) uniform sampler2D _TERRAIN_TEX_1;
+layout(binding = 3) uniform sampler2D _TERRAIN_TEX_2;
+layout(binding = 4) uniform sampler2D _TERRAIN_TEX_3;
+layout(binding = 5) uniform sampler2D _TERRAIN_TEX_4;
+
+in vec4 out_vertColor;
+in vec2 v_uv;
+in vec3 out_normal;
+//in mat3 out_TBN;
+in vec3 FragPos;
+
+uniform float _METALLIC;
+uniform float _SMOOTHNESS;
+uniform float _SSR_POWER;
+uniform vec4 _BASE_MAP_TO;
+uniform vec4 _SIZE;
+
+
+void main(){
+    vec2 uv = v_uv;
+    vec2 scaledUV = v_uv * _SIZE.xy;
+    scaledUV = fract(scaledUV);
+
+    vec4 splatMask = texture(_SPLAT_MAP, uv);
+    float w1 = splatMask.x;
+    float w2 = splatMask.y;
+    float w3 = splatMask.z;
+    float w4 = splatMask.w;
+
+    vec4 col1 = texture(_TERRAIN_TEX_1, scaledUV) * w1;
+    vec4 col2 = texture(_TERRAIN_TEX_2, scaledUV) * w2;
+    vec4 col3 = texture(_TERRAIN_TEX_3, scaledUV) * w3;
+    vec4 col4 = texture(_TERRAIN_TEX_4, scaledUV) * 0;
+    vec4 finalColor = col1 + col2 + col3 + col4;
+    finalColor = clamp(finalColor, vec4(0.0), vec4(1.0));
+    gAlbedoSmoothness = vec4(finalColor.xyz, _SMOOTHNESS);
+    gNormal = vec4(out_normal, _SSR_POWER);
+
+    gAlbedoSmoothness = vec4(uv, 0.0, _SMOOTHNESS);
+    #ifdef DEBUG_COLORS
+        gAlbedoSmoothness = vec4(out_vertColor.rgb, _SMOOTHNESS);
+    #endif
+}
+#endsection
+
+
