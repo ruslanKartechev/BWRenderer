@@ -113,7 +113,6 @@ void LoadShadersDeferred(Engine& engine) {
     allCompiled |= default3DG.CompileCustomShader() == 0;
     allCompiled |= default3DL.CompileCustomShader() == 0;
     allCompiled |= skybox.CompileCustomShader() == 0;
-
     allCompiled |= renderTexture.CompileCustomShader() == 0;
     allCompiled |= ssrShader.CompileCustomShader() == 0;
     allCompiled |= bloomDown1.CompileCustomShader() == 0;
@@ -579,20 +578,18 @@ void TestShaderCompile() {
     code = shader.CompileCustomShader();
     std::cout<< "Shader Result: " << code << std::endl;
 
-    if (code == Shader::COMPILE_CODE_SUCCESS) {
-        std::cout << std::endl;
-        std::cout << std::endl;
-        std::cout << std::endl;
-        while (1) {
-            char inp;
-            std::cin >> inp;
-        }
-        //u32 newId = 0;
-        //CompileGLSLCode(newId, vert, frag);
-        //this->m_ShaderID = newId;
+    std::cout << std::endl;
+    std::cout << std::endl;
+    std::cout << std::endl;
+    while (1) {
+        char inp;
+        std::cin >> inp;
     }
-
 }
+
+
+
+
 
 int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE prevInstance, LPSTR lpCmdLine, int nShowCmd) {
     AttachNativeConsole();

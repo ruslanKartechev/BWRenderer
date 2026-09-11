@@ -72,29 +72,44 @@ std::string& Shader::GetName(){
 
 
 i32 Shader::Recompile() {
-    u32 newShaderId = 0;
 
-    std::string vertexCode;
-    std::string fragmentCode;
-    bool didReadVert = AssetManager::ReadStringContent(vertexCode, m_mainPath.c_str());
-    bool didReadFrag = AssetManager::ReadStringContent(fragmentCode, m_fragmentPath.c_str());
-    if (!didReadVert) {
+    std::string content;
+    bool didRead = AssetManager::ReadStringContent(content, m_mainPath.c_str());
+    if (!didRead) {
         std::cerr << "Failed to load vertex shader! " << m_mainPath.c_str() << std::endl;
         return COMPILE_CODE_FAILED_TO_READ_VERTEX;
     }
-    if (!didReadFrag) {
-        std::cerr << "Failed to load fragment shader! " << m_fragmentPath.c_str() << std::endl;
-        return COMPILE_CODE_FAILED_TO_READ_FRAGMENT;
+    u32 newShaderId = 0;
+    std::string outVert {};
+    std::string outFrag {};
+    i32 code = ParseShaderToGLSL(outVert, outFrag, content);
+
+    if (code != 0) {
+        std::cout << "[Shader] Failed to parse shader code!" << std::endl;
+        return code;
     }
 
-    u32 code = CompileGLSLCode(newShaderId, vertexCode, fragmentCode);
+    // std::string vertexCode;
+    // std::string fragmentCode;
+    // bool didReadVert = AssetManager::ReadStringContent(vertexCode, m_mainPath.c_str());
+    // bool didReadFrag = AssetManager::ReadStringContent(fragmentCode, m_fragmentPath.c_str());
+    // if (!didReadVert) {
+    //     std::cerr << "Failed to load vertex shader! " << m_mainPath.c_str() << std::endl;
+    //     return COMPILE_CODE_FAILED_TO_READ_VERTEX;
+    // }
+    // if (!didReadFrag) {
+    //     std::cerr << "Failed to load fragment shader! " << m_fragmentPath.c_str() << std::endl;
+    //     return COMPILE_CODE_FAILED_TO_READ_FRAGMENT;
+    // }
+
+    code = CompileGLSLCode(newShaderId, outVert, outFrag);
     if (code != 0) {
         return code;
     }
     if (newShaderId != 0) {
 
 #ifdef LOG_SHADER_RECOMPILATION
-        std::cout << std::endl << "Compile success! updated shaderID: " << newShaderId  << std::endl;
+        std::cout << "\n\nCompile success! updated shaderID: " << newShaderId  << std::endl;
         std::cout << "Previous ID " << m_ShaderID << " New Shader ID: " << newShaderId << std::endl << std::endl;
 #endif
         if (m_ShaderID != newShaderId) {
@@ -116,13 +131,27 @@ i32 Shader::CompileCustomShader() {
         std::cerr << "Failed to load vertex shader! " << m_mainPath.c_str() << std::endl;
         return COMPILE_CODE_FAILED_TO_READ_VERTEX;
     }
-    std::string outVert;
-    std::string outFrag;
-    auto code = ParseShaderToGLSL(outVert, outFrag, content);
-    code = CompileGLSLCode(m_ShaderID, outVert, outFrag);
+    std::string outVert {};
+    std::string outFrag {};
+    i32 code = ParseShaderToGLSL(outVert, outFrag, content);
+
     if (code != 0) {
-        std::cerr << "Failed to COMPILE !!!!! " << m_mainPath.c_str() << std::endl;
+        std::cout << "[Shader] Failed to parse shader code!" << std::endl;
+        return code;
     }
+    // std::cout << "Shaders: \n" << outVert << "\n\n" << outFrag << std::endl;
+    // return 1;
+
+    code = CompileGLSLCode(m_ShaderID, outVert, outFrag);
+
+#ifdef LOG_SHADER_RECOMPILATION
+    if (code == 0) {
+        std::cout << "[Shader] compiled: " << m_name  << " id: " <<  m_ShaderID << std::endl;
+    }
+    else {
+        std::cout << "[Shader] Failed to compile: " << m_name << std::endl;
+    }
+#endif
     return code;
 }
 
@@ -225,7 +254,8 @@ static imax SkipToNextLine(const char* string, imax startIdx, imax stringLen) {
 
 
 
-
+// Parses custom .shader format into separate GLSL vertex and fragments shader
+// Will look for '#section Vertex' and '#section Fragment' sections inside the source 'fileContent'
 int Shader::ParseShaderToGLSL(std::string& out_vert, std::string& out_frag, const std::string fileContent)
 {
     i32 returnCode = 0;
@@ -243,13 +273,15 @@ int Shader::ParseShaderToGLSL(std::string& out_vert, std::string& out_frag, cons
     out_vert.reserve(len);
     out_frag.reserve(len);
 
+    i32 indexStartVertex = 0;
+    i32 indexEndVertex = 0;
+    i32 indexStartFragment = 0;
+    i32 indexEndFragment = 0;
+    i32 sectionMode = 0; // none, vertex, fragment
 
     for(imax i = 0; i < len; i++)
     {
         switch (fileContent[i]) {
-            // case '\n':
-            //     continue;
-            //     break;
             case '#':
                 // shader version
                 if (CheckWord(strPtr, i+1, len, wordVersion)) {
@@ -271,54 +303,44 @@ int Shader::ParseShaderToGLSL(std::string& out_vert, std::string& out_frag, cons
                         nwStart++;
                     }
 
-                    char ff = strPtr[nwStart];
-                    bool isVertexSection = false;
                     if (CheckWord(strPtr, nwStart, len, wordVertex)) {
-                        isVertexSection = true;
+                        sectionMode = 1;
                         foundVertex = true;
+                        i = SkipToNextLine(strPtr, i, len);
+                        indexStartVertex = i;
+
                     } else if (CheckWord(strPtr, nwStart, len, wordFragment)) {
-                        isVertexSection = false;
+                        sectionMode = 2;
                         foundFragment = true;
+                        i = SkipToNextLine(strPtr, i, len);
+                        indexStartFragment = i;
                     }
                     else {
                         printf("ERROR FAILED PARSE SECTION TYPE\n");
                         return COMPILE_CODE_ERROR;
                     }
                     i = SkipToNextLine(strPtr, i, len);
-
-                    imax sectionEndIdx = 0;
-                    if (!FindIndexOfNextChar('#', strPtr, i, len, sectionEndIdx)) {
-                        return COMPILE_CODE_END_SECTION_NOT_FOUND;
-                    }
-                    // Skip empty characters
-                    while (i < len && (strPtr[i] == '\n' || strPtr[i] == '\r' || strPtr[i] == ' '))
-                    {i++;}
-
-                    i32 copyLen = sectionEndIdx - i - 2;
-                    if (isVertexSection) {
-                        // printf("Found vertex section %d - %d\n", i, sectionEndIdx);
-                        out_vert.insert(out_vert.size(), fileContent, i, copyLen);
-                    }
-                    else {
-                        // printf("Found fragment section %d - %d\n", i, sectionEndIdx);
-                        out_frag.insert(out_frag.size(), fileContent, i, copyLen);
-                    }
-                    i = sectionEndIdx;
                 }
                 // endSection
-                else if (CheckWord(strPtr, i+1, len, wordEndSection)) {
-
-                    i = SkipToNextLine(strPtr, i, len);
+                else if (CheckWord(strPtr, i + 1, len, wordEndSection)) {
+                    if (sectionMode == 1) {
+                        indexEndVertex = i - 1;
+                    }
+                    else if (sectionMode == 2) {
+                        indexEndFragment = i - 1;
+                    }
                 }
                 break;
         }
     }
     if (!foundVertex) {
-        returnCode = COMPILE_CODE_NOT_FOUND_VERTEX;
+        return COMPILE_CODE_NOT_FOUND_VERTEX;
     }
     if (!foundFragment) {
-        returnCode = COMPILE_CODE_NOT_FOUND_FRAGMENT;
+        return COMPILE_CODE_NOT_FOUND_FRAGMENT;
     }
+    out_vert.insert(out_vert.size(), fileContent, indexStartVertex, indexEndVertex - indexStartVertex);
+    out_frag.insert(out_frag.size(), fileContent, indexStartFragment, indexEndFragment - indexStartFragment);
     return returnCode;
 }
 

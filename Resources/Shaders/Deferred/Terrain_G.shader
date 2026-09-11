@@ -137,7 +137,7 @@ void main(){
     gAlbedoSmoothness = vec4(finalColor.xyz, _SMOOTHNESS);
     gNormal = vec4(out_normal, _SSR_POWER);
 
-    gAlbedoSmoothness = vec4(uv, 0.0, _SMOOTHNESS);
+//    gAlbedoSmoothness = vec4(uv, 0.0, _SMOOTHNESS);
     #ifdef DEBUG_COLORS
         gAlbedoSmoothness = vec4(out_vertColor.rgb, _SMOOTHNESS);
     #endif

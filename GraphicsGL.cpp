@@ -7,6 +7,7 @@
 #include "Terrain.h"
 #include "cglm/cglm.h"
 #include "Mesh.h"
+
 #define DRAW_DEBUG_TERRAIN_COLORS
 
 
@@ -998,7 +999,6 @@ void GL_InstancedPass(RenderTarget& target, AssetManager& assets,
 }
 // endregion
 
-
 //region Terrain render
 // TODO FIX THE degenerate triangle strips at the bottom and left (rotation is flipped)
 void GL_TerrainPass(RenderTarget& renderTarget, GameScene& scene, Camera& camera, AssetManager& assets) {
@@ -1026,13 +1026,13 @@ void GL_TerrainPass(RenderTarget& renderTarget, GameScene& scene, Camera& camera
         terrain.heightData.scale,
         1.0
     };
-    // 1. Extract Frustum Planes
+    // Get frustum planes
     mat4 viewProj;
     glm_mat4_mul(camera.projectionMatrix, camera.viewMatrix, viewProj);
     vec4 frustumPlanes[6];
     glm_frustum_planes(viewProj, frustumPlanes); // left, right, bottom, top, near, far
 
-    // 2. AABB vs Frustum Intersection Test
+    // 2 AABB frustum culling
     auto IsInsideFrustum = [](vec3 min, vec3 max, vec4 planes[6]) -> bool {
         for (int i = 0; i < 6; i++) {
             f32 px = planes[i][0] > 0.0f ? max[0] : min[0];
@@ -1079,8 +1079,8 @@ void GL_TerrainPass(RenderTarget& renderTarget, GameScene& scene, Camera& camera
 
     // terrainY = 0.0f;
     vec2 viewPosXZ = {0, 0};
-    f32 yMax = terrainY + terrain.heightData.scale + 100;
-    f32 yMin = terrainY - terrain.heightData.scale;
+    f32 yMax = FLT_MAX / 2.0f;
+    f32 yMin = -yMax;
 
     auto DrawMesh = [&](ClipmapMesh& mesh, f32 ox, f32 oz,
         f32 scale, f32 skirt

@@ -35,12 +35,12 @@ static TextureHandle h_grassTex;
 static TextureHandle h_rockTex;
 static Handle hTrackObj;
 
-constexpr i32 NoiseSizeX = 512;
+constexpr i32 NoiseSizeX = 1024;
 
 constexpr f32 TerrainHeightScale = 12.0f;
 constexpr f32 TerrainNoisePersistence = .5f;
-constexpr i32 TerrainSeed = 4;
-constexpr i32 TerrainNoiseOctaves = 10;
+constexpr i32 TerrainSeed = 5;
+constexpr i32 TerrainNoiseOctaves = 9;
 
 static bool didGenTerrain;
 static f32 terrainYPositon = 0.0f;
@@ -327,7 +327,7 @@ void RebuildTerrain(AssetManager& assets, GameScene& scene) {
     std::cout << "HeightScale: " << terrain.heightData.scale << std::endl;
     std::cout << "seed: " << terrain.heightData.seed << std::endl;
 
-    NoiseGenerator::GeneratePerlin(terrain.heightData);
+    NoiseGenerator::GenerateTerrainNoise(terrain.heightData);
     NoiseGenerator::GenerateSplatMapForTerrain(terrain.terrainSplat, terrain.heightData);
 
     Texture& noiseTexture = assets.textures.GetItemRef(terrain.hNoiseTex);
@@ -374,7 +374,9 @@ void BuildTerrain(AssetManager& assets, GameScene& scene) {
     terrain.terrainSplat.band3 = 0.48f;
     terrain.terrainSplat.band4 = 0.7f;
 
-    NoiseGenerator::GeneratePerlin(terrain.heightData);
+    terrain.heightData.noiseType = NoiseData::TYPE_DERIVATIVES;
+
+    NoiseGenerator::GenerateTerrainNoise(terrain.heightData);
     NoiseGenerator::GenerateSplatMapForTerrain(terrain.terrainSplat, terrain.heightData);
 
     Texture& noiseTexture = assets.textures.GetNewObjectAndHandle(terrain.hNoiseTex);
@@ -620,20 +622,10 @@ static void UpdateSlidingTerrain() {
 void ScriptTerrainGame::Update(f32 deltaTime) {
 
     auto& engine = *Engine::GetInstance();
-    // auto& cam = engine.scene.GetCameraTransform();
-    // auto& transform = engine.scene.GetTransformForObject(hTrackObj);
-    // vec3 frw;
-    // Transform_GetFrw(cam, frw);
-    // frw[1] = 0;
-    // glm_vec3_scale(frw, 10, frw);
-    // glm_vec3_copy(cam.position, transform.position);
-    // glm_vec3_add(transform.position, frw, transform.position);
-    // transform.position[1] = engine.scene.terrain.GetHeightAt(transform.position[0], transform.position[2]);
-    // Transform_UpdateMatrices(transform);
     if (engine.runningTime < 5) {
         return;
     }
-    UpdateSlidingTerrain();
+    // UpdateSlidingTerrain();
 }
 
 
